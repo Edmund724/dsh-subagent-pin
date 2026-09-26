@@ -1,5 +1,5 @@
 /**
- * Host plugin: pin every fresh subagent delegation to one LLM route.
+ * Host plugin: give every fresh subagent delegation an authorized LLM route.
  *
  * `tool-subagent.agentOptions` is the only configuration-plane knob for a child
  * route, and it exists only on the delegation *tools*. Teammates
@@ -12,13 +12,17 @@
  * The route comes from one of two sources:
  *
  * - `source: 'settings'` (default) follows the `subagentModelSelection` Settings
- *   row — the model checkboxes in Settings. That list is a *permission* list,
- *   not a candidate pool, so this plugin requires it to allow exactly one model
- *   and pins that one. The list is re-read on every delegation, so re-checking a
- *   model in the UI takes effect on the next delegation without a restart. A
- *   list that allows zero or several models, a disabled row, a missing row, or a
- *   row that rejects its own list fails the delegation loudly with an
- *   actionable message: a child never silently falls back to the parent route.
+ *   row — the model checkboxes in Settings. That list is a *permission* list, so
+ *   the plugin pins the route of an unspecified delegation to one of its
+ *   entries: `config.defaultModel` when set, otherwise the first authorized
+ *   model. Any other authorized model an explicit request names is left exactly
+ *   as requested, which keeps the original intent — the agent chooses among the
+ *   authorized routes — while a delegation that names no route can still never
+ *   inherit the parent's. The list is re-read on every delegation, so re-checking
+ *   a model in the UI takes effect on the next delegation without a restart. A
+ *   list that allows zero models, a disabled row, a missing row, or a row that
+ *   rejects its own list fails the delegation loudly with an actionable message:
+ *   a child never silently falls back to the parent route.
  * - `source: 'pinned'` keeps a route in this row's own config, for a Host
  *   without the Settings row. `allowedModels` is the exact set those explicit
  *   requests may name.
@@ -58,7 +62,7 @@ export const inject = ['subagents']
 const METHODS = ['start', 'startContinuable']
 
 /** Config keys this row understands. */
-const KNOWN_KEYS = ['source', 'provider', 'model', 'reasoningEffort', 'allowedModels']
+const KNOWN_KEYS = ['source', 'provider', 'model', 'reasoningEffort', 'allowedModels', 'defaultModel']
 
 /** Raise one activation-visible configuration or seam failure. */
 function fail(message) {
@@ -82,17 +86,20 @@ function optionalText(value, field) {
   return requiredText(value, field)
 }
 
+/** Read one exact `{ provider, model }` route from config. */
+function routeEntry(value, field) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) fail(`${field} must be an object`)
+  for (const key of Object.keys(value)) if (key !== 'provider' && key !== 'model') fail(`${field} has unknown key "${key}"`)
+  return {
+    provider: requiredText(value.provider, `${field}.provider`),
+    model: requiredText(value.model, `${field}.model`),
+  }
+}
+
 /** Read one route list from config. */
 function routeList(value) {
   if (!Array.isArray(value) || value.length === 0) fail('config.allowedModels must be a non-empty list of { provider, model }')
-  return value.map((entry, index) => {
-    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) fail(`config.allowedModels[${index}] must be an object`)
-    for (const key of Object.keys(entry)) if (key !== 'provider' && key !== 'model') fail(`config.allowedModels[${index}] has unknown key "${key}"`)
-    return {
-      provider: requiredText(entry.provider, `allowedModels[${index}].provider`),
-      model: requiredText(entry.model, `allowedModels[${index}].model`),
-    }
-  })
+  return value.map((entry, index) => routeEntry(entry, `config.allowedModels[${index}]`))
 }
 
 /** Validate the row's config; an unknown key is a typo, never a silent no-op. */
@@ -107,8 +114,10 @@ function resolveConfig(config) {
     for (const key of ['provider', 'model', 'allowedModels']) {
       if (record[key] !== undefined) fail(`config.${key} is fixed by the Settings row while config.source is "settings"; remove it or set config.source to "pinned"`)
     }
-    return { source, reasoningEffort }
+    const defaultModel = record.defaultModel === undefined ? undefined : routeEntry(record.defaultModel, 'config.defaultModel')
+    return { source, reasoningEffort, defaultModel }
   }
+  if (record.defaultModel !== undefined) fail('config.defaultModel is redundant while config.source is "pinned"; the pinned route is already the default')
   const provider = requiredText(record.provider, 'provider')
   const model = requiredText(record.model, 'model')
   const allowedModels = record.allowedModels === undefined ? [{ provider, model }] : routeList(record.allowedModels)
@@ -120,9 +129,12 @@ function resolveConfig(config) {
  * Resolve the route one delegation must use.
  *
  * In `pinned` mode this is the row's own config. In `settings` mode it is the
- * single model the Settings row currently allows, read fresh on every call so a
- * re-checked model applies immediately. Every way that read can fail is a hard
- * error: a delegation without an authorized route must not inherit the parent's.
+ * route of an unspecified delegation — `config.defaultModel` when set, otherwise
+ * the first model the Settings row authorizes — read fresh on every call so a
+ * re-checked model applies immediately. Every authorized route is passed on, so
+ * an explicit request may name any of them. Every way that read can fail is a
+ * hard error: a delegation without an authorized route must not inherit the
+ * parent's.
  *
  * @param pin - Validated row config.
  * @param ctx - Host context exposing `subagentModelSelection`.
@@ -140,14 +152,21 @@ function pinRoute(pin, ctx) {
   } catch (error) {
     fail(`the Settings row rejected its own model list: ${reason(error)}`)
   }
-  if (state?.enabled !== true) fail('the Settings row is disabled, so no subagent route is authorized; enable it with exactly one checked model, or set this plugin to source: "pinned"')
+  if (state?.enabled !== true) fail('the Settings row is disabled, so no subagent route is authorized; enable it and check at least one model, or set this plugin to source: "pinned"')
   const routes = Array.isArray(state.allowedModels) ? state.allowedModels : []
-  if (routes.length !== 1) fail(`the Settings row must allow exactly one subagent model; ${routes.length} are checked (${renderRoutes(routes) || 'none'}) — uncheck the extras, or set this plugin to source: "pinned"`)
-  const route = routes[0]
-  if (route === null || typeof route !== 'object' || typeof route.provider !== 'string' || route.provider.length === 0 || typeof route.model !== 'string' || route.model.length === 0) {
-    fail('the Settings row reported a malformed route; expected exactly { provider, model }')
+  if (routes.length === 0) fail('the Settings row authorizes no subagent model; check at least one model, or set this plugin to source: "pinned"')
+  const allowedModels = routes.map((route, index) => {
+    if (route === null || typeof route !== 'object' || typeof route.provider !== 'string' || route.provider.length === 0 || typeof route.model !== 'string' || route.model.length === 0) {
+      fail(`the Settings row reported a malformed route at index ${index}; expected { provider, model }`)
+    }
+    return { provider: route.provider, model: route.model }
+  })
+  const chosen = pin.defaultModel
+  if (chosen !== undefined && !allowedModels.some((route) => route.provider === chosen.provider && route.model === chosen.model)) {
+    fail(`config.defaultModel "${chosen.provider}/${chosen.model}" is not among the models the Settings row authorizes (${renderRoutes(allowedModels)}); check it in Settings or remove config.defaultModel`)
   }
-  return { source: 'settings', provider: route.provider, model: route.model, reasoningEffort: pin.reasoningEffort, allowedModels: [{ provider: route.provider, model: route.model }] }
+  const route = chosen ?? allowedModels[0]
+  return { source: 'settings', provider: route.provider, model: route.model, reasoningEffort: pin.reasoningEffort, allowedModels }
 }
 
 /** The route an explicitly model-selecting caller named, if any. */
@@ -198,10 +217,13 @@ function dropOwnShadows(subagents) {
 }
 
 /**
- * Pin fresh subagent delegations at `ctx.subagents`.
+ * Route fresh subagent delegations at `ctx.subagents`.
+ *
+ * A delegation that names no route gets the configured one; a delegation that
+ * names an authorized route is left exactly as requested; anything else fails.
  *
  * @param ctx - Host context; `subagents` must be available.
- * @param config - `{ source?, provider?, model?, reasoningEffort?, allowedModels? }`.
+ * @param config - `{ source?, provider?, model?, reasoningEffort?, allowedModels?, defaultModel? }`.
  */
 export function apply(ctx, config) {
   const pinConfig = resolveConfig(config)
@@ -288,8 +310,8 @@ export function apply(ctx, config) {
   }
   try {
     const route = pinRoute(pinConfig, ctx)
-    ctx.logger?.info?.(`subagent-pin: fresh delegations follow the Settings row, currently ${route.provider}/${route.model}${effortText(route.reasoningEffort)}; any other explicitly requested route fails`)
+    ctx.logger?.info?.(`subagent-pin: fresh delegations follow the Settings row; default ${route.provider}/${route.model}${effortText(route.reasoningEffort)}; authorized: ${renderRoutes(route.allowedModels)}; any other explicitly requested route fails`)
   } catch (error) {
-    ctx.logger?.warn?.(`subagent-pin: the Settings row cannot pin a route yet, so every fresh delegation will fail until it does — ${reason(error)}`)
+    ctx.logger?.warn?.(`subagent-pin: the Settings row cannot authorize a route yet, so every fresh delegation will fail until it does — ${reason(error)}`)
   }
 }

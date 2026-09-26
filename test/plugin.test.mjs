@@ -19,8 +19,8 @@ const OUT_OF_PROCESS = { name: 'codex', capabilities: { agentOptions: false }, i
 const CHECKED = { provider: 'opencodego', model: 'space-bunny-free' }
 const OTHER = { provider: 'opencodego', model: 'deepseek-v4.1-flash' }
 
-/** The default mode: follow the Settings row, which must allow exactly one model. */
-const SETTINGS_CONFIG = { source: 'settings', reasoningEffort: 'high' }
+/** The default mode: follow the Settings row, which authorizes one or more models. */
+const SETTINGS_CONFIG = { source: 'settings' }
 
 /** The opt-in static mode, kept for a Host without the Settings row. */
 const PINNED_CONFIG = {
@@ -328,28 +328,20 @@ test('the default source follows the Settings row', () => {
   assert.deepEqual(subagents.calls[0].request.agentOptions, { provider: 'opencodego', model: 'space-bunny-free' })
 })
 
-test('settings mode pins the one checked model', () => {
+test('settings mode routes an unspecified delegation to the checked model', () => {
   const { subagents } = mountedSettings()
 
   subagents.start('spawn', { parent: PARENT })
 
-  assert.deepEqual(subagents.calls[0].request.agentOptions, {
-    provider: 'opencodego',
-    model: 'space-bunny-free',
-    reasoningEffort: 'high',
-  })
+  assert.deepEqual(subagents.calls[0].request.agentOptions, { provider: 'opencodego', model: 'space-bunny-free' })
 })
 
-test('settings mode pins a continuable delegation too', async () => {
+test('settings mode routes a continuable delegation too', async () => {
   const { subagents } = mountedSettings()
 
   await subagents.startContinuable({ provider: 'spawn', label: 'task', request: { prompt: [], parent: PARENT } })
 
-  assert.deepEqual(subagents.calls[0].spec.request.agentOptions, {
-    provider: 'opencodego',
-    model: 'space-bunny-free',
-    reasoningEffort: 'high',
-  })
+  assert.deepEqual(subagents.calls[0].spec.request.agentOptions, { provider: 'opencodego', model: 'space-bunny-free' })
 })
 
 test('settings mode re-reads the checked model for every delegation', () => {
@@ -369,27 +361,49 @@ test('settings mode follows a model re-checked to another provider', () => {
   settings.state.routes = [{ provider: 'kimi-coding', model: 'kimi-k2' }]
   subagents.start('spawn', { parent: PARENT })
 
-  assert.deepEqual(subagents.calls[0].request.agentOptions, {
-    provider: 'kimi-coding',
-    model: 'kimi-k2',
-    reasoningEffort: 'high',
-  })
+  assert.deepEqual(subagents.calls[0].request.agentOptions, { provider: 'kimi-coding', model: 'kimi-k2' })
 })
 
-test('settings mode fails every delegation while several models are checked', () => {
+test('settings mode routes an unspecified delegation to the first authorized model', () => {
+  const { subagents } = mountedSettings([{ ...CHECKED }, { ...OTHER }])
+
+  subagents.start('spawn', { parent: PARENT })
+
+  assert.deepEqual(subagents.calls[0].request.agentOptions, { provider: 'opencodego', model: 'space-bunny-free' })
+})
+
+test('settings mode leaves an explicitly requested authorized route untouched', () => {
+  const { subagents } = mountedSettings([{ ...CHECKED }, { ...OTHER }])
+  const options = { provider: 'opencodego', model: 'deepseek-v4.1-flash' }
+
+  subagents.start('spawn', { parent: PARENT, agentOptions: options })
+
+  assert.equal(subagents.calls[0].request.agentOptions, options)
+})
+
+test('settings mode still rejects an explicit route outside a multi-model authorization', () => {
   const { subagents } = mountedSettings([{ ...CHECKED }, { ...OTHER }])
 
   assert.throws(
-    () => subagents.start('spawn', { parent: PARENT }),
-    /must allow exactly one subagent model; 2 are checked/,
+    () => subagents.start('spawn', { parent: PARENT, agentOptions: { provider: 'kimi-coding', model: 'kimi-k2' } }),
+    /child LLM route "kimi-coding\/kimi-k2" is not allowed/,
   )
   assert.equal(subagents.calls.length, 0)
+})
+
+test('settings mode follows which authorized model comes first', () => {
+  const { subagents, settings } = mountedSettings([{ ...CHECKED }, { ...OTHER }])
+
+  settings.state.routes = [{ ...OTHER }, { ...CHECKED }]
+  subagents.start('spawn', { parent: PARENT })
+
+  assert.equal(subagents.calls[0].request.agentOptions.model, 'deepseek-v4.1-flash')
 })
 
 test('settings mode fails every delegation while no model is checked', () => {
   const { subagents } = mountedSettings([])
 
-  assert.throws(() => subagents.start('spawn', { parent: PARENT }), /exactly one subagent model; 0 are checked/)
+  assert.throws(() => subagents.start('spawn', { parent: PARENT }), /authorizes no subagent model/)
 })
 
 test('settings mode fails every delegation while the Settings row is disabled', () => {
@@ -428,16 +442,59 @@ test('settings mode reports a rejected Settings list instead of pinning nothing'
   assert.throws(() => subagents.start('spawn', { parent: PARENT }), /repeats route/)
 })
 
-test('activation warns while the Settings row cannot pin anything', () => {
-  const { ctx } = mountedSettings([{ ...CHECKED }, { ...OTHER }])
+test('activation warns while the Settings row cannot authorize anything', () => {
+  const { ctx } = mountedSettings([{ ...CHECKED }], false)
 
-  assert.equal(ctx.logs.some((entry) => entry.level === 'warn' && entry.message.includes('exactly one') && entry.message.includes('will fail')), true)
+  assert.equal(ctx.logs.some((entry) => entry.level === 'warn' && entry.message.includes('will fail')), true)
 })
 
 test('activation reports the checked model once the Settings row is usable', () => {
   const { ctx } = mountedSettings()
 
   assert.equal(ctx.logs.some((entry) => entry.level === 'info' && entry.message.includes('opencodego/space-bunny-free')), true)
+})
+
+test('config.defaultModel overrides the first authorized model', () => {
+  const subagents = fakeSubagents()
+  const ctx = fakeCtx(subagents, { subagentModelSelection: fakeSettings([{ ...CHECKED }, { ...OTHER }]) })
+  apply(ctx, { source: 'settings', defaultModel: { ...OTHER } })
+
+  subagents.start('spawn', { parent: PARENT })
+
+  assert.deepEqual(subagents.calls[0].request.agentOptions, { provider: 'opencodego', model: 'deepseek-v4.1-flash' })
+})
+
+test('activation reports the default route and every authorized model', () => {
+  const subagents = fakeSubagents()
+  const ctx = fakeCtx(subagents, { subagentModelSelection: fakeSettings([{ ...CHECKED }, { ...OTHER }]) })
+  apply(ctx, { source: 'settings', defaultModel: { ...OTHER } })
+
+  assert.equal(
+    ctx.logs.some((entry) => entry.level === 'info' && entry.message.includes('default opencodego/deepseek-v4.1-flash') && entry.message.includes('opencodego/space-bunny-free')),
+    true,
+  )
+})
+
+test('config.defaultModel must stay authorized as the Settings row changes', () => {
+  const subagents = fakeSubagents()
+  const settings = fakeSettings([{ ...CHECKED }, { ...OTHER }])
+  const ctx = fakeCtx(subagents, { subagentModelSelection: settings })
+  apply(ctx, { source: 'settings', defaultModel: { ...OTHER } })
+  settings.state.routes = [{ ...CHECKED }]
+
+  assert.throws(
+    () => subagents.start('spawn', { parent: PARENT }),
+    /defaultModel "opencodego\/deepseek-v4\.1-flash" is not among the models the Settings row authorizes/,
+  )
+  assert.equal(subagents.calls.length, 0)
+})
+
+test('config.defaultModel is validated at activation', () => {
+  const ctx = () => fakeCtx(fakeSubagents(), { subagentModelSelection: fakeSettings() })
+  assert.throws(() => apply(ctx(), { source: 'settings', defaultModel: 'opencodego/space-bunny-free' }), /config.defaultModel must be an object/)
+  assert.throws(() => apply(ctx(), { source: 'settings', defaultModel: { provider: 'opencodego' } }), /config.defaultModel.model must be a non-empty string/)
+  assert.throws(() => apply(ctx(), { source: 'settings', defaultModel: { ...CHECKED, extra: 1 } }), /config.defaultModel has unknown key "extra"/)
+  assert.throws(() => apply(ctx(), { ...PINNED_CONFIG, defaultModel: { ...CHECKED } }), /config.defaultModel is redundant while config.source is "pinned"/)
 })
 
 test('settings mode rejects an explicit route other than the checked one', () => {
