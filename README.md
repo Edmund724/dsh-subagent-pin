@@ -1,6 +1,6 @@
 # @local/dsh-subagent-pin
 
-[English](README.en.md) | **简体中文**
+[English](README-en.md) | **简体中文**
 
 Host 插件：把每一次**全新**（fresh）子代理委派固定到同一个 LLM 路由，不需要模型在提示词上配合。默认该路由取 Settings 中勾选的模型（`subagent-model-selection-settings`），每次委派都重新读取。它以 bundle 形式安装到某个 profile（本环境为 `desktop` profile，bundle `@local/dsh-subagent-pin`，行 id `subagent-pin`）。
 
