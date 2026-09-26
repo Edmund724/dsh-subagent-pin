@@ -1,5 +1,5 @@
 /**
- * Unit tests for the subagent-model-pin Host plugin.
+ * Unit tests for the subagent-pin Host plugin.
  *
  * The plugin only touches `ctx.subagents`, `ctx.get`, `ctx.logger` and
  * `ctx.effect`, so a small double is enough to pin down its contract without

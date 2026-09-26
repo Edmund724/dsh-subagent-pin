@@ -48,7 +48,7 @@
  * The wrapper fails activation loudly when the service shape it depends on is
  * absent instead of silently leaving children on the parent route.
  *
- * @module @local/dsh-subagent-model-pin
+ * @module @local/dsh-subagent-pin
  */
 
 /** Wait for the delegation service instead of failing on a Host composition without it. */
@@ -62,12 +62,12 @@ const KNOWN_KEYS = ['source', 'provider', 'model', 'reasoningEffort', 'allowedMo
 
 /** Raise one activation-visible configuration or seam failure. */
 function fail(message) {
-  throw new Error(`subagent-model-pin: ${message}`)
+  throw new Error(`subagent-pin: ${message}`)
 }
 
 /** Render one caught error without nesting the plugin prefix twice. */
 function reason(error) {
-  return (error instanceof Error ? error.message : String(error)).replace(/^subagent-model-pin: /, '')
+  return (error instanceof Error ? error.message : String(error)).replace(/^subagent-pin: /, '')
 }
 
 /** Read one required non-empty string config field. */
@@ -209,7 +209,7 @@ export function apply(ctx, config) {
   if (subagents === null || typeof subagents !== 'object') fail('the `subagents` service is unavailable; load @deepseek-ai/dsh-subagent in the Host composition')
   for (const method of METHODS) if (typeof subagents[method] !== 'function') fail(`the \`subagents\` service has no ${method}() method — this Harness moved the delegation seam, so nothing was pinned`)
   if (!Object.isExtensible(subagents)) fail('the `subagents` service instance is not extensible, so nothing was pinned')
-  if (dropOwnShadows(subagents)) ctx.logger?.warn?.('subagent-model-pin: a previous activation left the `subagents` service wrapped; the prototype methods were restored before pinning again')
+  if (dropOwnShadows(subagents)) ctx.logger?.warn?.('subagent-pin: a previous activation left the `subagents` service wrapped; the prototype methods were restored before pinning again')
 
   // The methods as this context calls them, plus the own properties we replace;
   // a service whose methods are own properties (not the shipped prototype
@@ -231,16 +231,16 @@ export function apply(ctx, config) {
     const explicit = explicitRoute(request)
     if (explicit !== undefined) {
       const named = `${explicit.provider ?? '?'}/${explicit.model ?? '?'}`
-      if (!pin.allowedModels.some((route) => route.provider === explicit.provider && route.model === explicit.model)) throw new Error(`subagent-model-pin: child LLM route "${named}" is not allowed for delegation; allowed: ${renderRoutes(pin.allowedModels)}`)
+      if (!pin.allowedModels.some((route) => route.provider === explicit.provider && route.model === explicit.model)) throw new Error(`subagent-pin: child LLM route "${named}" is not allowed for delegation; allowed: ${renderRoutes(pin.allowedModels)}`)
       return request
     }
     const provider = typeof subagents.getProvider === 'function' ? subagents.getProvider(providerName) : undefined
     if (provider?.capabilities?.agentOptions === false) {
-      report('warn', `capability:${providerName}`, `subagent-model-pin: provider "${providerName}" cannot honor child agentOptions (out-of-process delegation); its child route is left to that provider`)
+      report('warn', `capability:${providerName}`, `subagent-pin: provider "${providerName}" cannot honor child agentOptions (out-of-process delegation); its child route is left to that provider`)
       return request
     }
     if (provider?.inheritsParentContext === true) {
-      report('info', `inherited:${providerName}`, `subagent-model-pin: provider "${providerName}" inherits the parent conversation; its child keeps the inherited route so the reused prefix stays cacheable`)
+      report('info', `inherited:${providerName}`, `subagent-pin: provider "${providerName}" inherits the parent conversation; its child keeps the inherited route so the reused prefix stays cacheable`)
       return request
     }
     const requested = request.agentOptions?.reasoningEffort
@@ -272,7 +272,7 @@ export function apply(ctx, config) {
       const current = Object.getOwnPropertyDescriptor(subagents, method)
       if (current === undefined) continue
       if (typeof inheritedMethod(subagents, method) === 'function') {
-        if (current.value !== wrappers[method]) ctx.logger?.warn?.(`subagent-model-pin: another wrapper replaced ours on ${method}(); restoring the prototype method anyway`)
+        if (current.value !== wrappers[method]) ctx.logger?.warn?.(`subagent-pin: another wrapper replaced ours on ${method}(); restoring the prototype method anyway`)
         delete subagents[method]
         continue
       }
@@ -283,13 +283,13 @@ export function apply(ctx, config) {
   })
 
   if (pinConfig.source === 'pinned') {
-    ctx.logger?.info?.(`subagent-model-pin: fresh delegations pinned to ${pinConfig.provider}/${pinConfig.model}${effortText(pinConfig.reasoningEffort)}; allowed: ${renderRoutes(pinConfig.allowedModels)}`)
+    ctx.logger?.info?.(`subagent-pin: fresh delegations pinned to ${pinConfig.provider}/${pinConfig.model}${effortText(pinConfig.reasoningEffort)}; allowed: ${renderRoutes(pinConfig.allowedModels)}`)
     return
   }
   try {
     const route = pinRoute(pinConfig, ctx)
-    ctx.logger?.info?.(`subagent-model-pin: fresh delegations follow the Settings row, currently ${route.provider}/${route.model}${effortText(route.reasoningEffort)}; any other explicitly requested route fails`)
+    ctx.logger?.info?.(`subagent-pin: fresh delegations follow the Settings row, currently ${route.provider}/${route.model}${effortText(route.reasoningEffort)}; any other explicitly requested route fails`)
   } catch (error) {
-    ctx.logger?.warn?.(`subagent-model-pin: the Settings row cannot pin a route yet, so every fresh delegation will fail until it does — ${reason(error)}`)
+    ctx.logger?.warn?.(`subagent-pin: the Settings row cannot pin a route yet, so every fresh delegation will fail until it does — ${reason(error)}`)
   }
 }

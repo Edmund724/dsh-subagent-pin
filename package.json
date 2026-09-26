@@ -1,5 +1,5 @@
 {
-  "name": "@local/dsh-subagent-model-pin",
+  "name": "@local/dsh-subagent-pin",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -17,7 +17,7 @@
     "tools/*.mjs"
   ],
   "meta": {
-    "title": "Subagent Model Pin",
+    "title": "Subagent Pin",
     "description": "Pins every fresh subagent delegation to one configured LLM route."
   },
   "dsh": {

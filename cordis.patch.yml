@@ -4,8 +4,8 @@
 # requires it to allow exactly one model; that model is pinned here. A delegation
 # that explicitly names any other route fails instead of running on it.
 - insert:
-    - id: subagent-model-pin
-      name: '@local/dsh-subagent-model-pin'
+    - id: subagent-pin
+      name: '@local/dsh-subagent-pin'
       config:
         source: settings
         reasoningEffort: high

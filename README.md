@@ -1,10 +1,10 @@
-# @local/dsh-subagent-model-pin
+# @local/dsh-subagent-pin
 
 Host plugin that pins every **fresh** subagent delegation to one LLM route, with
 no prompt cooperation from the model. By default that route is the model checked
 in Settings (`subagent-model-selection-settings`), read fresh on every
 delegation. Installed in the `desktop` profile as bundle
-`@local/dsh-subagent-model-pin`, row `subagent-model-pin`.
+`@local/dsh-subagent-pin`, row `subagent-pin`.
 
 ## Why a Host plugin
 
@@ -82,8 +82,8 @@ validate an *explicit* route against the checked model.
 The shipped config (default mode — the route follows Settings):
 
 ```yaml
-- id: subagent-model-pin
-  name: '@local/dsh-subagent-model-pin'
+- id: subagent-pin
+  name: '@local/dsh-subagent-pin'
   config:
     source: settings     # default
     reasoningEffort: high  # optional
@@ -92,8 +92,8 @@ The shipped config (default mode — the route follows Settings):
 The static mode, for a Host without the Settings row:
 
 ```yaml
-- id: subagent-model-pin
-  name: '@local/dsh-subagent-model-pin'
+- id: subagent-pin
+  name: '@local/dsh-subagent-pin'
   config:
     source: pinned
     provider: opencodego
@@ -116,7 +116,7 @@ does not advertise that effort.
 Unit tests (39, no Harness needed) run with:
 
 ```powershell
-& 'D:\Apps\DeepSeek Harness\resources\runtime\primary-runtime\dependencies\node\bin\node.exe' --test D:\DSH\dsh-subagent-model-pin\test\plugin.test.mjs
+& 'D:\Apps\DeepSeek Harness\resources\runtime\primary-runtime\dependencies\node\bin\node.exe' --test D:\DSH\dsh-subagent-pin\test\plugin.test.mjs
 ```
 
 They cover both sources, the pin, the per-delegation re-read of the Settings
@@ -155,7 +155,7 @@ above.
 
 ## Rollback
 
-`plugin_manager` `set_bundle` with `@local/dsh-subagent-model-pin` disabled, or
+`plugin_manager` `set_bundle` with `@local/dsh-subagent-pin` disabled, or
 `remove_bundle` to delete it. Disabling disposes the wrapper in the running
 process: the delegation seam is unwrapped and children inherit the delegating
 agent's route again. No profile patch and no preset was modified for this
