@@ -94,13 +94,13 @@ Fork 例外与进程外例外是刻意的：固定这两者花费大于收益，
 
 下面每一项都写成可在另一台机器上复现的形式。只需要一个 Node.js（单元测试需 Node ≥ 20；`tools/read-session.mjs` 用到 `zlib.zstdDecompressSync`，需 Node ≥ 22.15）—— `PATH` 上若没有 `node`，用 Harness 自带的运行时（相对 Harness 安装目录）：`<Harness 安装目录>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`。现场核对另需一个已启用该插件的运行中 Harness。
 
-单元测试 —— 46 项，无需运行 Harness（在 Node 25.8.0 上验证）。在仓库根目录执行：
+单元测试 —— 53 项，无需运行 Harness（在 Node 25.8.0 上验证）。在仓库根目录执行：
 
 ```powershell
 node --test
 ```
 
-（`node --test test/plugin.test.mjs` 显式运行同一个文件。）
+（`node --test test/route-policy.test.mjs` 只跑策略侧：它直接调用 `route-policy.js`，不需要任何替身；`node --test test/plugin.test.mjs` 只跑接缝与组合侧。）
 
 覆盖内容：两种 source、默认路由本身、授权集合内的显式路由原样放行、`defaultModel` 覆盖与「它已不在授权集合内」的报错、每次委派重新读取 Settings 行，Settings 行的所有不可用形态（0 个模型、被禁用、不存在、该行自己就拒绝的清单）、两个例外、授权集合外报错、只警告一次的规则、两种还原形态、治愈上一次激活遗留的 shadow、装在我们的包装之上的包装，以及通过「每次函数读取都重新包装」的 proxy 卸载（正是这个形态打挂了第一版）。
 

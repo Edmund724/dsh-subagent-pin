@@ -11,8 +11,10 @@
   },
   "files": [
     "plugin.js",
+    "route-policy.js",
     "cordis.patch.yml",
     "README.md",
+    "CONTEXT.md",
     "locale/*.json",
     "tools/*.mjs"
   ],

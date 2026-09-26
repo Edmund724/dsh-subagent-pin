@@ -171,14 +171,16 @@ Harness install directory:
 `<harness>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`.
 The live table additionally needs a running Harness with this plugin enabled.
 
-Unit tests — 46 tests, no Harness needed (verified on Node 25.8.0). From the
+Unit tests — 53 tests, no Harness needed (verified on Node 25.8.0). From the
 repository root:
 
 ```powershell
 node --test
 ```
 
-(`node --test test/plugin.test.mjs` names the same file explicitly.)
+(`node --test test/route-policy.test.mjs` runs the policy half alone — it calls
+`route-policy.js` directly and needs no double; `node --test
+test/plugin.test.mjs` runs the seam and composition half.)
 
 They cover both sources, the default route itself, an explicit route inside the
 authorized set passing through untouched, `defaultModel` overriding it and the

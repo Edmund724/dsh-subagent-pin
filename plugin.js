@@ -9,29 +9,14 @@
  * path shares: `ctx.subagents.start()` and `startContinuable()`, before the
  * provider resolves child options.
  *
- * The route comes from one of two sources:
+ * This file owns the seam and the row's config. *Which* route a delegation gets,
+ * and every way that answer fails, is `route-policy.js` — a module with no Host
+ * dependency, so the policy is reachable without mounting the plugin. Here the
+ * policy is only wired up: read the Settings row, hand the values in, throw a
+ * rejection, log a notice, and call the original method.
  *
- * - `source: 'settings'` (default) follows the `subagentModelSelection` Settings
- *   row — the model checkboxes in Settings. That list is a *permission* list, so
- *   the plugin pins the route of an unspecified delegation to one of its
- *   entries: `config.defaultModel` when set, otherwise the first authorized
- *   model. Any other authorized model an explicit request names is left exactly
- *   as requested, which keeps the original intent — the agent chooses among the
- *   authorized routes — while a delegation that names no route can still never
- *   inherit the parent's. The list is re-read on every delegation, so re-checking
- *   a model in the UI takes effect on the next delegation without a restart. A
- *   list that allows zero models, a disabled row, a missing row, or a row that
- *   rejects its own list fails the delegation loudly with an actionable message:
- *   a child never silently falls back to the parent route.
- * - `source: 'pinned'` keeps a route in this row's own config, for a Host
- *   without the Settings row. `allowedModels` is the exact set those explicit
- *   requests may name.
- *
- * Coverage and deliberate exceptions are documented in `README.md`. Two
- * exceptions matter here: a fork-class provider (`inheritsParentContext`) keeps
- * the inherited route so its reused conversation prefix stays cacheable, and a
- * provider that advertises no `agentOptions` capability (an out-of-process
- * backend) is left to route its own child.
+ * The policy itself is documented in `README.md`; the domain words are in
+ * `CONTEXT.md`.
  *
  * The seam is an instance method of the `subagents` service, not a Cordis
  * `intercept` point: `Context.intercept` supplies per-service *config*, and the
@@ -55,6 +40,8 @@
  * @module @local/dsh-subagent-pin
  */
 
+import { PREFIX, decideDelegation, renderRoutes, resolveAuthorization } from './route-policy.js'
+
 /** Wait for the delegation service instead of failing on a Host composition without it. */
 export const inject = ['subagents']
 
@@ -66,12 +53,13 @@ const KNOWN_KEYS = ['source', 'provider', 'model', 'reasoningEffort', 'allowedMo
 
 /** Raise one activation-visible configuration or seam failure. */
 function fail(message) {
-  throw new Error(`subagent-pin: ${message}`)
+  throw new Error(`${PREFIX}${message}`)
 }
 
 /** Render one caught error without nesting the plugin prefix twice. */
 function reason(error) {
-  return (error instanceof Error ? error.message : String(error)).replace(/^subagent-pin: /, '')
+  const message = error instanceof Error ? error.message : String(error)
+  return message.startsWith(PREFIX) ? message.slice(PREFIX.length) : message
 }
 
 /** Read one required non-empty string config field. */
@@ -125,68 +113,28 @@ function resolveConfig(config) {
   return { source, provider, model, reasoningEffort, allowedModels }
 }
 
-/**
- * Resolve the route one delegation must use.
- *
- * In `pinned` mode this is the row's own config. In `settings` mode it is the
- * route of an unspecified delegation — `config.defaultModel` when set, otherwise
- * the first model the Settings row authorizes — read fresh on every call so a
- * re-checked model applies immediately. Every authorized route is passed on, so
- * an explicit request may name any of them. Every way that read can fail is a
- * hard error: a delegation without an authorized route must not inherit the
- * parent's.
- *
- * @param pin - Validated row config.
- * @param ctx - Host context exposing `subagentModelSelection`.
- * @returns `{ provider, model, reasoningEffort, allowedModels }` for this delegation.
- */
-function pinRoute(pin, ctx) {
-  if (pin.source === 'pinned') return pin
-  const settings = typeof ctx.get === 'function' ? ctx.get('subagentModelSelection') : undefined
-  if (settings === null || typeof settings !== 'object' || typeof settings.current !== 'function') {
-    fail('config.source is "settings" but @deepseek-ai/dsh-tool-subagent/model-selection-settings is not composed in this Host; add that row or set this plugin to source: "pinned"')
-  }
-  let state
-  try {
-    state = settings.current()
-  } catch (error) {
-    fail(`the Settings row rejected its own model list: ${reason(error)}`)
-  }
-  if (state?.enabled !== true) fail('the Settings row is disabled, so no subagent route is authorized; enable it and check at least one model, or set this plugin to source: "pinned"')
-  const routes = Array.isArray(state.allowedModels) ? state.allowedModels : []
-  if (routes.length === 0) fail('the Settings row authorizes no subagent model; check at least one model, or set this plugin to source: "pinned"')
-  const allowedModels = routes.map((route, index) => {
-    if (route === null || typeof route !== 'object' || typeof route.provider !== 'string' || route.provider.length === 0 || typeof route.model !== 'string' || route.model.length === 0) {
-      fail(`the Settings row reported a malformed route at index ${index}; expected { provider, model }`)
-    }
-    return { provider: route.provider, model: route.model }
-  })
-  const chosen = pin.defaultModel
-  if (chosen !== undefined && !allowedModels.some((route) => route.provider === chosen.provider && route.model === chosen.model)) {
-    fail(`config.defaultModel "${chosen.provider}/${chosen.model}" is not among the models the Settings row authorizes (${renderRoutes(allowedModels)}); check it in Settings or remove config.defaultModel`)
-  }
-  const route = chosen ?? allowedModels[0]
-  return { source: 'settings', provider: route.provider, model: route.model, reasoningEffort: pin.reasoningEffort, allowedModels }
-}
-
-/** The route an explicitly model-selecting caller named, if any. */
-function explicitRoute(request) {
-  const options = request.agentOptions
-  if (options === null || typeof options !== 'object') return undefined
-  const provider = typeof options.provider === 'string' ? options.provider : undefined
-  const model = typeof options.model === 'string' ? options.model : undefined
-  if (provider === undefined && model === undefined) return undefined
-  return { provider, model }
-}
-
-/** Render the allowed routes for one diagnostic. */
-function renderRoutes(routes) {
-  return routes.map((route) => `${route?.provider ?? '?'}/${route?.model ?? '?'}`).join(', ')
-}
-
 /** Render the effort suffix for one diagnostic. */
 function effortText(reasoningEffort) {
   return reasoningEffort === undefined ? '' : ` (effort ${reasoningEffort})`
+}
+
+/**
+ * Read the Settings row's current state, or why it cannot be read.
+ *
+ * The read stays here, on the effect side, so the policy module never needs a
+ * context: it receives this outcome as a value.
+ *
+ * @param ctx - Host context exposing `subagentModelSelection`.
+ * @returns `{ kind: 'ok', state }`, `{ kind: 'unavailable' }`, or `{ kind: 'failed', message }`.
+ */
+function readSettings(ctx) {
+  const settings = typeof ctx.get === 'function' ? ctx.get('subagentModelSelection') : undefined
+  if (settings === null || typeof settings !== 'object' || typeof settings.current !== 'function') return { kind: 'unavailable' }
+  try {
+    return { kind: 'ok', state: settings.current() }
+  } catch (error) {
+    return { kind: 'failed', message: reason(error) }
+  }
 }
 
 /** The method an instance would expose if its own shadowing property were gone. */
@@ -200,6 +148,15 @@ function inheritedMethod(subagents, method) {
 }
 
 /**
+ * Whether this method carries an own shadow that is hiding a real prototype
+ * method — the one question activation healing and disposal ask in opposite
+ * directions.
+ */
+function shadowOverPrototype(subagents, method) {
+  return Object.getOwnPropertyDescriptor(subagents, method) !== undefined && typeof inheritedMethod(subagents, method) === 'function'
+}
+
+/**
  * Delete every own shadow hiding a real prototype method.
  *
  * @param subagents - Service instance holding the delegation methods.
@@ -208,8 +165,7 @@ function inheritedMethod(subagents, method) {
 function dropOwnShadows(subagents) {
   let dropped = false
   for (const method of METHODS) {
-    if (Object.getOwnPropertyDescriptor(subagents, method) === undefined) continue
-    if (typeof inheritedMethod(subagents, method) !== 'function') continue
+    if (!shadowOverPrototype(subagents, method)) continue
     delete subagents[method]
     dropped = true
   }
@@ -231,7 +187,7 @@ export function apply(ctx, config) {
   if (subagents === null || typeof subagents !== 'object') fail('the `subagents` service is unavailable; load @deepseek-ai/dsh-subagent in the Host composition')
   for (const method of METHODS) if (typeof subagents[method] !== 'function') fail(`the \`subagents\` service has no ${method}() method — this Harness moved the delegation seam, so nothing was pinned`)
   if (!Object.isExtensible(subagents)) fail('the `subagents` service instance is not extensible, so nothing was pinned')
-  if (dropOwnShadows(subagents)) ctx.logger?.warn?.('subagent-pin: a previous activation left the `subagents` service wrapped; the prototype methods were restored before pinning again')
+  if (dropOwnShadows(subagents)) ctx.logger?.warn?.(`${PREFIX}a previous activation left the \`subagents\` service wrapped; the prototype methods were restored before pinning again`)
 
   // The methods as this context calls them, plus the own properties we replace;
   // a service whose methods are own properties (not the shipped prototype
@@ -246,36 +202,19 @@ export function apply(ctx, config) {
     ctx.logger?.[level]?.(message)
   }
 
+  /** Resolve the row's authorization for one delegation, reading Settings fresh. */
+  const authorizationOf = () => resolveAuthorization(pinConfig, pinConfig.source === 'settings' ? readSettings(ctx) : undefined)
+
   /** Resolve the request handed to the provider (never mutating the caller's object). */
   const plan = (providerName, request) => {
-    if (request === null || typeof request !== 'object') return request
-    const pin = pinRoute(pinConfig, ctx)
-    const explicit = explicitRoute(request)
-    if (explicit !== undefined) {
-      const named = `${explicit.provider ?? '?'}/${explicit.model ?? '?'}`
-      if (!pin.allowedModels.some((route) => route.provider === explicit.provider && route.model === explicit.model)) throw new Error(`subagent-pin: child LLM route "${named}" is not allowed for delegation; allowed: ${renderRoutes(pin.allowedModels)}`)
-      return request
-    }
     const provider = typeof subagents.getProvider === 'function' ? subagents.getProvider(providerName) : undefined
-    if (provider?.capabilities?.agentOptions === false) {
-      report('warn', `capability:${providerName}`, `subagent-pin: provider "${providerName}" cannot honor child agentOptions (out-of-process delegation); its child route is left to that provider`)
-      return request
-    }
-    if (provider?.inheritsParentContext === true) {
-      report('info', `inherited:${providerName}`, `subagent-pin: provider "${providerName}" inherits the parent conversation; its child keeps the inherited route so the reused prefix stays cacheable`)
-      return request
-    }
-    const requested = request.agentOptions?.reasoningEffort
-    const reasoningEffort = typeof requested === 'string' ? requested : pin.reasoningEffort
-    return {
-      ...request,
-      agentOptions: {
-        ...request.agentOptions,
-        provider: pin.provider,
-        model: pin.model,
-        ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
-      },
-    }
+    const decision = decideDelegation(
+      { provider: providerName, request, capabilities: provider?.capabilities, inheritsParentContext: provider?.inheritsParentContext },
+      authorizationOf(),
+    )
+    if (decision.kind === 'reject') throw new Error(decision.message)
+    for (const notice of decision.notices) report(notice.level, notice.key, notice.message)
+    return decision.request
   }
 
   const wrappers = {
@@ -293,8 +232,8 @@ export function apply(ctx, config) {
     for (const method of METHODS) {
       const current = Object.getOwnPropertyDescriptor(subagents, method)
       if (current === undefined) continue
-      if (typeof inheritedMethod(subagents, method) === 'function') {
-        if (current.value !== wrappers[method]) ctx.logger?.warn?.(`subagent-pin: another wrapper replaced ours on ${method}(); restoring the prototype method anyway`)
+      if (shadowOverPrototype(subagents, method)) {
+        if (current.value !== wrappers[method]) ctx.logger?.warn?.(`${PREFIX}another wrapper replaced ours on ${method}(); restoring the prototype method anyway`)
         delete subagents[method]
         continue
       }
@@ -305,13 +244,15 @@ export function apply(ctx, config) {
   })
 
   if (pinConfig.source === 'pinned') {
-    ctx.logger?.info?.(`subagent-pin: fresh delegations pinned to ${pinConfig.provider}/${pinConfig.model}${effortText(pinConfig.reasoningEffort)}; allowed: ${renderRoutes(pinConfig.allowedModels)}`)
+    const { route } = resolveAuthorization(pinConfig, undefined)
+    ctx.logger?.info?.(`${PREFIX}fresh delegations pinned to ${route.provider}/${route.model}${effortText(route.reasoningEffort)}; allowed: ${renderRoutes(route.allowedModels)}`)
     return
   }
-  try {
-    const route = pinRoute(pinConfig, ctx)
-    ctx.logger?.info?.(`subagent-pin: fresh delegations follow the Settings row; default ${route.provider}/${route.model}${effortText(route.reasoningEffort)}; authorized: ${renderRoutes(route.allowedModels)}; any other explicitly requested route fails`)
-  } catch (error) {
-    ctx.logger?.warn?.(`subagent-pin: the Settings row cannot authorize a route yet, so every fresh delegation will fail until it does — ${reason(error)}`)
+  const authorization = resolveAuthorization(pinConfig, readSettings(ctx))
+  if (authorization.ok) {
+    const { route } = authorization
+    ctx.logger?.info?.(`${PREFIX}fresh delegations follow the Settings row; default ${route.provider}/${route.model}${effortText(route.reasoningEffort)}; authorized: ${renderRoutes(route.allowedModels)}; any other explicitly requested route fails`)
+  } else {
+    ctx.logger?.warn?.(`${PREFIX}the Settings row cannot authorize a route yet, so every fresh delegation will fail until it does — ${authorization.reason}`)
   }
 }
