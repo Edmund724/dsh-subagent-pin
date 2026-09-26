@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "子代理模型钉子",
+    "description": "把所有 fresh 子代理委派钉到同一个配置好的 LLM 路由上。"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "@local/dsh-subagent-model-pin",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pins every fresh subagent delegation to one configured LLM route.",
+  "exports": {
+    ".": "./plugin.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "plugin.js",
+    "cordis.patch.yml",
+    "README.md",
+    "locale/*.json",
+    "tools/*.mjs"
+  ],
+  "meta": {
+    "title": "Subagent Model Pin",
+    "description": "Pins every fresh subagent delegation to one configured LLM route."
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

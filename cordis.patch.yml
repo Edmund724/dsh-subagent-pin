@@ -1,0 +1,11 @@
+# Host plugin: pin fresh subagent delegations to the model checked in Settings.
+#
+# `source: settings` reads the `subagent-model-selection-settings` row and
+# requires it to allow exactly one model; that model is pinned here. A delegation
+# that explicitly names any other route fails instead of running on it.
+- insert:
+    - id: subagent-model-pin
+      name: '@local/dsh-subagent-model-pin'
+      config:
+        source: settings
+        reasoningEffort: high
