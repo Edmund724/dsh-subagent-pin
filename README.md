@@ -4,6 +4,17 @@
 
 Host 插件：把每一次**全新**（fresh）子代理委派固定到同一个 LLM 路由，不需要模型在提示词上配合。默认该路由取 Settings 中勾选的模型（`subagent-model-selection-settings`），每次委派都重新读取。它以 bundle 形式安装到某个 profile（本环境为 `desktop` profile，bundle `@local/dsh-subagent-pin`，行 id `subagent-pin`）。
 
+## 不用这个插件会怎样
+
+DSH 里「子代理模型」那一行 Settings 是**权限清单 + 发现工具**，它本身不会把任何一次委派引到该模型上。所以即使你在 Settings 里勾好了子代理模型，也很容易直接跑在主 agent 的模型上，设置等于失效：
+
+- `resolveChildAgentOptions(parent, requested, childDepth)` 先铺开**父 agent 的 provider/model**，`requested`（本次委派显式给出的路由）只做覆盖。调用方不带模型字段时，子代理就是主 agent 的模型。
+- 权限校验 `assertAllowedModelSelection` 只在「模型显式选了路由」时才介入 —— 源码注释写得很直白：*Pure inheritance remains outside this policy because no model-facing choice occurred*。也就是说，纯继承根本不受 Settings 约束。
+- `list_subagent_models` 只是把允许的路由**告诉模型**，用不用完全靠模型自己在每一次调用里写 `provider`/`model`。少写一次，就静默退回主 agent 的模型，没有任何提示。
+- 而 `agentTeams.spawnTeammate`、workflow 的 `agent()`、嵌套委派这些路径**根本没有模型入参**，永远走继承。
+
+结果就是：设置看起来生效了（子代理照常跑起来），实际用的却是主 agent 的模型。本插件补上这一步 —— 在 provider 解析子代理 options 之前注入路由，让 Settings 里勾的那个模型对每一次全新委派真正生效。
+
 ## 为什么必须是 Host 插件
 
 委派*工具*（`subagent`、`subagent_fork`）从 `tool-subagent.agentOptions` 取路由，但那份配置只存在于工具上。`agentTeams.spawnTeammate`、workflow 的 `agent()` 以及嵌套委派都直接调用 `ctx.subagents`，继承委派方自己的路由；Agent Teams 服务根本没有模型入参，`workflow-ptc` 的 Config 只带一个 provider *名称*。所以改 preset 平面到不了这些路径。

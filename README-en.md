@@ -8,6 +8,33 @@ in Settings (`subagent-model-selection-settings`), read fresh on every
 delegation. It is installed as a bundle in a profile (in this environment:
 profile `desktop`, bundle `@local/dsh-subagent-pin`, row `subagent-pin`).
 
+## What you get without this plugin
+
+The Settings row for the subagent model is an **allow-list plus a discovery
+tool**; on its own it never steers a delegation to that model. So even with a
+subagent model checked in Settings, children easily run on the main agent's
+model, and the setting is effectively a no-op:
+
+- `resolveChildAgentOptions(parent, requested, childDepth)` spreads the
+  **parent's provider/model** first; `requested` (the route named on this call)
+  only overrides. When the caller names no model, the child is the main agent's
+  model.
+- The allow-list check, `assertAllowedModelSelection`, only applies when a
+  model-facing choice actually occurred — its own comment says: *Pure inheritance
+  remains outside this policy because no model-facing choice occurred*.
+  Inheriting a route is not constrained by Settings at all.
+- `list_subagent_models` merely tells the model which routes are allowed; whether
+  one gets used depends on the model writing `provider`/`model` into every single
+  call. Omit it once and the delegation silently falls back to the main agent's
+  model, with no warning.
+- Paths with no model input at all — `agentTeams.spawnTeammate`, workflow
+  `agent()`, nested delegations — always inherit.
+
+Net effect: the setting looks like it worked (a child does run), while the child
+runs the main agent's model. This plugin closes that gap: it injects the route
+before the provider resolves child options, so the model checked in Settings
+actually applies to every fresh delegation.
+
 ## Why a Host plugin
 
 The delegation *tools* (`subagent`, `subagent_fork`) take a route from
