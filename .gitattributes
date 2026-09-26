@@ -1,0 +1,9 @@
+# Store LF in the repository and check out LF on every platform, so diffs stay
+# clean for collaborators on Windows.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.zip binary
