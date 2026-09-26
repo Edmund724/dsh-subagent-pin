@@ -1,162 +1,110 @@
 # @local/dsh-subagent-pin
 
-Host plugin that pins every **fresh** subagent delegation to one LLM route, with
-no prompt cooperation from the model. By default that route is the model checked
-in Settings (`subagent-model-selection-settings`), read fresh on every
-delegation. Installed in the `desktop` profile as bundle
-`@local/dsh-subagent-pin`, row `subagent-pin`.
+[English](README.en.md) | **简体中文**
 
-## Why a Host plugin
+Host 插件：把每一次**全新**（fresh）子代理委派固定到同一个 LLM 路由，不需要模型在提示词上配合。默认该路由取 Settings 中勾选的模型（`subagent-model-selection-settings`），每次委派都重新读取。它以 bundle 形式安装到某个 profile（本环境为 `desktop` profile，bundle `@local/dsh-subagent-pin`，行 id `subagent-pin`）。
 
-The delegation *tools* (`subagent`, `subagent_fork`) take a route from
-`tool-subagent.agentOptions`, but that config exists only on the tools.
-`agentTeams.spawnTeammate`, workflow `agent()` and nested delegations call
-`ctx.subagents` directly and inherit the delegating agent's route; the Agent
-Teams service has no model input at all and `workflow-ptc`'s Config carries only
-a provider *name*. Preset-plane changes therefore cannot reach those paths.
+## 为什么必须是 Host 插件
 
-This plugin wraps the one seam they all share — `ctx.subagents.start()` and
-`ctx.subagents.startContinuable()` — before the provider resolves child options.
-The injected `request.agentOptions` becomes the child's real route, is recorded
-in the child's `subagent/descriptor`, and survives cold resume (which reads that
-descriptor back).
+委派*工具*（`subagent`、`subagent_fork`）从 `tool-subagent.agentOptions` 取路由，但那份配置只存在于工具上。`agentTeams.spawnTeammate`、workflow 的 `agent()` 以及嵌套委派都直接调用 `ctx.subagents`，继承委派方自己的路由；Agent Teams 服务根本没有模型入参，`workflow-ptc` 的 Config 只带一个 provider *名称*。所以改 preset 平面到不了这些路径。
 
-## How the seam works (read before changing this file)
+本插件包住它们共用的唯一接缝 —— `ctx.subagents.start()` 与 `ctx.subagents.startContinuable()` —— 在 provider 解析子代理 options 之前注入。注入的 `request.agentOptions` 就是子代理的真实路由，会写进子代理的 `subagent/descriptor`，并且冷恢复时靠读回该 descriptor 而存活。
 
-Reading `ctx.subagents` does not hand back the service instance: Cordis returns a
-tracing proxy whose **function reads are re-wrapped on every access**. A wrapper
-can therefore never recognize itself by comparing function values — an identity
-check silently fails and the wrapper is never removed. Only property
-*descriptors* are stable, and `defineProperty` through that proxy lands on the
-shared instance every consumer reads.
+## 接缝的工作方式（改这个文件前必读）
 
-The shipped `start`/`startContinuable` are prototype methods, so a wrapper is an
-*own shadow*: deleting the property exposes the original method again. Both
-activation and disposal work on shadows:
+读取 `ctx.subagents` 拿不到服务实例：Cordis 返回的是 tracing proxy，**函数读取在每次访问时都会被重新包装**。因此包装器永远无法通过比较函数值认出自己 —— 身份检查会静默失败，包装也就永远拆不掉。只有属性 *descriptor* 是稳定的，而通过该 proxy 的 `defineProperty` 会落到所有消费者读到的同一个实例上。
 
-- activation deletes a shadow a previous activation left behind and logs a
-  warning, so a crashed or replaced generation cannot stack wrappers;
-- disposal deletes its own shadow (or, for a service whose methods are own
-  properties, puts the captured property back), so **disabling the plugin always
-  returns the service to its unwrapped shape**.
+随包发布的 `start`/`startContinuable` 是原型方法，所以包装器是一个 *own shadow*：删掉该属性就重新露出原方法。激活与卸载都基于 shadow：
 
-If the seam is missing (no `start`, or a non-extensible instance) activation
-fails loudly and the row shows as failed instead of silently leaving children on
-the parent route.
+- 激活时会先删掉上一次激活遗留的 shadow 并记录一条警告，因此崩溃或被替换的上一代不会叠加包装；
+- 卸载时删掉自己的 shadow（若该服务的方法是 own property，则写回捕获到的属性），所以**禁用插件总能把服务还原成未包装的形态**。
 
-## Model source
+如果接缝不存在（没有 `start`，或实例不可扩展），激活会显式失败，该行状态变成 failed，而不是悄悄把子代理留在父路由上。
 
-The Settings row is a **permission** list, not a candidate pool: it exists so a
-model-facing `subagent` call may name one of those routes, and nothing in DSH
-ever picks from it. So this plugin requires it to allow **exactly one** model and
-pins that one. That read happens on every delegation, so re-checking a model
-applies to the next child with no restart — fresher than the shipped `subagent`
-tool, which samples the list when a session receives its delegation tools.
+## 模型来源
 
-While the row allows zero or several models, is disabled, or is not composed,
-**every** fresh delegation fails with a message naming the fix. That is
-deliberate: an unauthorized child must never silently fall back to the
-delegating agent's route. `source: pinned` is the escape hatch for a Host
-without that row.
+Settings 的那一行是**权限**清单，不是候选池：它的存在只是为了让面向模型的 `subagent` 调用可以指名其中一条路由，DSH 本身从不从中挑一个。所以本插件要求它只允许**恰好一个**模型，并固定该模型。这个读取每次委派都发生，所以重新勾选模型对下一个子代理立即生效、无需重启 —— 比随包的 `subagent` 工具更新鲜（后者在会话拿到委派工具时采样一次）。
 
-## Policy
+当该行允许 0 个或多个模型、被禁用、或未被组装时，**每一次**全新委派都会失败，并在消息里给出修复方法。这是刻意的：未授权的子代理绝不能悄悄退回委派方的路由。`source: pinned` 是没有该行的 Host 的逃生通道。
 
-| Delegation | Result |
+## 策略
+
+| 委派 | 结果 |
 |---|---|
-| Fresh child (`spawn`), no model fields | Pinned to the single model the Settings row allows |
-| Fresh child, only `reasoning_effort` given | Pinned route, caller's effort kept |
-| Any child, explicit route equal to that model | Left exactly as requested |
-| Any child, explicit route for any other model | **Throws** — the delegation fails visibly |
-| Settings row allows 0 or 2+ models, disabled, or absent | **Throws** on every fresh delegation, naming the fix |
-| Fork-class provider (`inheritsParentContext`) | Left on the inherited route, so the reused conversation prefix stays cacheable |
-| Provider without the `agentOptions` capability (out-of-process `codex`/`claude-code`) | Left to that provider, reported once as a warning |
+| 全新子代理（`spawn`），不带模型字段 | 固定到 Settings 行允许的那个唯一模型 |
+| 全新子代理，只给了 `reasoning_effort` | 固定路由，保留调用方的 effort |
+| 任何子代理，显式路由等于该模型 | 完全按请求原样放行 |
+| 任何子代理，显式指定其它模型的路由 | **抛错** —— 委派可见地失败 |
+| Settings 行允许 0 个或 2 个以上模型、被禁用、或不存在 | 每次全新委派都**抛错**，并写明修复方法 |
+| Fork 类 provider（`inheritsParentContext`） | 留在继承来的路由上，复用对话前缀仍然命中缓存 |
+| 不具备 `agentOptions` 能力的 provider（进程外 `codex`/`claude-code`） | 交给该 provider，只报告一次警告 |
 
-The fork exception and the out-of-process exception are deliberate: pinning
-either would spend more than it saves, and neither can be enforced in-process.
-Teammates spawned with `context: "fork"` fall under the fork exception; fresh
-teammates (`freshProvider`, the default) are pinned. Both exceptions still
-validate an *explicit* route against the checked model.
+Fork 例外与进程外例外是刻意的：固定这两者花费大于收益，而且都无法在进程内强制。以 `context: "fork"` 生成的 teammate 属于 Fork 例外；全新 teammate（默认的 `freshProvider`）会被固定。两个例外仍然会用已勾选模型校验*显式*给出的路由。
 
-## Config
+## 配置
 
-The shipped config (default mode — the route follows Settings):
+随包发布的配置（默认模式 —— 路由跟随 Settings）：
 
 ```yaml
 - id: subagent-pin
   name: '@local/dsh-subagent-pin'
   config:
-    source: settings     # default
-    reasoningEffort: high  # optional
+    source: settings     # 默认
+    reasoningEffort: high  # 可选
 ```
 
-The static mode, for a Host without the Settings row:
+静态模式，用于没有 Settings 那一行的 Host：
 
 ```yaml
 - id: subagent-pin
   name: '@local/dsh-subagent-pin'
   config:
     source: pinned
-    provider: opencodego
-    model: space-bunny-free
-    reasoningEffort: high          # optional
-    allowedModels:                 # optional; defaults to the pinned route
-      - provider: opencodego
-        model: space-bunny-free
+    provider: <provider-id>
+    model: <model-id>
+    reasoningEffort: high          # 可选
+    allowedModels:                 # 可选；默认为固定的那条路由
+      - provider: <provider-id>
+        model: <model-id>
 ```
 
-In `settings` mode `provider`, `model` and `allowedModels` are rejected at
-activation, so a stale static route cannot quietly win; in `pinned` mode
-`allowedModels` must contain the pinned route. An unknown config key is an
-activation error, not a silent no-op. `reasoningEffort` is applied only when the
-caller names no effort of its own — unset it here if you re-check a model that
-does not advertise that effort.
+`settings` 模式下 `provider`、`model` 和 `allowedModels` 会在激活时被拒绝，因此过期的静态路由无法悄悄生效；`pinned` 模式下 `allowedModels` 必须包含固定的那条路由。未知配置键是激活错误，而不是静默忽略。仅当调用方自己没有指定 effort 时才会套用 `reasoningEffort` —— 如果你重新勾选了一个不支持该 effort 的模型，就把这里取消掉。
 
-## Verified
+## 已验证
 
-Unit tests (39, no Harness needed) run with:
+下面每一项都写成可在另一台机器上复现的形式。只需要一个 Node.js（单元测试需 Node ≥ 20；`tools/read-session.mjs` 用到 `zlib.zstdDecompressSync`，需 Node ≥ 22.15）—— `PATH` 上若没有 `node`，用 Harness 自带的运行时（相对 Harness 安装目录）：`<Harness 安装目录>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`。现场核对另需一个已启用该插件的运行中 Harness。
+
+单元测试 —— 39 项，无需运行 Harness（在 Node 25.8.0 上验证）。在仓库根目录执行：
 
 ```powershell
-& 'D:\Apps\DeepSeek Harness\resources\runtime\primary-runtime\dependencies\node\bin\node.exe' --test D:\DSH\dsh-subagent-pin\test\plugin.test.mjs
+node --test
 ```
 
-They cover both sources, the pin, the per-delegation re-read of the Settings
-row, every unusable-Settings shape (0 models, 2+ models, disabled, absent, a
-list the row itself rejects), both exceptions, the explicit-route error, the
-single-warning rule, both restoration shapes, healing of a shadow a previous
-activation left, a wrapper installed over ours, and disposal through a proxy
-that re-wraps every function read (the shape that broke the first version).
+（`node --test test/plugin.test.mjs` 显式运行同一个文件。）
 
-Live checks, each one tool call:
+覆盖内容：两种 source、固定本身、每次委派重新读取 Settings 行、Settings 行的所有不可用形态（0 个模型、2 个以上模型、被禁用、不存在、该行自己就拒绝的清单）、两个例外、显式路由报错、只警告一次的规则、两种还原形态、治愈上一次激活遗留的 shadow、装在我们的包装之上的包装，以及通过「每次函数读取都重新包装」的 proxy 卸载（正是这个形态打挂了第一版）。
 
-| Check | How | Expected |
+现场核对 —— 人工执行，每项一次工具调用，需要在已启用该插件的 Harness 上做。`<已勾选模型>` 指 Settings 行允许的那个唯一模型；此处用作示例的路由（`opencodego`、`deepseek-v4.1-flash`）是本环境的，请替换为你自己的。会话日志位于 `$DSH_HOME/sessions/<项目目录名>/<会话 id>/session.v4.jsonl.zstd`（`$DSH_HOME` 默认是 `~/.dsh`，Windows 上是 `%USERPROFILE%\.dsh`）。
+
+| 检查项 | 做法 | 期望 |
 |---|---|---|
-| Fresh `subagent`, no model fields | `subagent` probe asking for its `{{model}}` | the model checked in Settings |
-| Workflow `agent()`, no model fields | `workflow` probe returning the child's model | the model checked in Settings |
-| Re-checked model | re-check another model in Settings, repeat the workflow probe | the newly checked model, with no restart |
-| Several models checked | check two models, repeat the workflow probe | a visible error naming the checked count |
-| Continuable child (the Agent Teams seam) | `subagent` with `run_in_background: true`, then `tools/read-session.mjs` on the child log | `subagent/descriptor`: `"mode":"continuable","agentProvider":"opencodego","agentModel":"<checked model>"` |
-| Explicit route other than the checked model | `subagent` with `provider: opencodego, model: deepseek-v4.1-flash` | error naming the route and the allowed route |
-| Lead unaffected | `tools/read-session.mjs <lead log> request` | `request/header` keeps `opencodego/deepseek-v4.1-flash` |
-| Disabled = unchanged | disable the bundle, then run the workflow probe with an explicit route | the child runs `deepseek-v4.1-flash`: nothing is wrapped |
+| 全新 `subagent`，不带模型字段 | 用 `subagent` 探测，让它回报自己的 `{{model}}` | Settings 中勾选的模型 |
+| workflow `agent()`，不带模型字段 | 用 `workflow` 探测，返回子代理的模型 | Settings 中勾选的模型 |
+| 重新勾选模型 | 在 Settings 里改勾另一个模型，重跑 workflow 探测 | 新勾选的模型，无需重启 |
+| 勾选多个模型 | 勾两个模型，重跑 workflow 探测 | 报错，并写明勾选数量 |
+| continuable 子代理（Agent Teams 接缝） | `subagent` 加 `run_in_background: true`，再对子会话日志跑 `node tools/read-session.mjs <子会话日志>` | `subagent/descriptor`：`"mode":"continuable","agentProvider":"<provider-id>","agentModel":"<已勾选模型>"` |
+| 显式指定其它路由 | `subagent` 显式指定一个不同于已勾选模型的路由 | 报错，写明该路由与允许的路由 |
+| Lead 不受影响 | `node tools/read-session.mjs <lead 会话日志> request` | `request/header` 保持 Lead 自己的路由 |
+| 禁用 = 不改变 | 禁用该 bundle，然后带显式路由跑一次探测 | 子代理运行该显式路由：没有任何包装 |
 
-`tools/read-session.mjs` reads a durable session log from evidence; it splits the
-log's concatenated zstd frames, which a single-shot decompress loses.
+`tools/read-session.mjs` 从证据里读一份持久会话日志；它会切分日志中拼接的 zstd 帧 —— 单次解压会丢掉后面的帧。
 
-Wrapper removal on disable is covered by the unit tests and was observed live
-when an earlier generation of this plugin was disabled: DSH runs the row's
-effects on unload, so the shadow is deleted in the running process.
+禁用时拆除包装由单元测试覆盖，并在本环境现场观察过（禁用本插件更早的一代时）：DSH 在 unload 时执行该行的副作用，所以 shadow 会在运行中的进程里被删掉。
 
-## Changing this plugin
+## 修改本插件
 
-Editing the file has no effect on a running Harness: DSH caches each plugin
-module by package name and loads a replacement module generation only in a fresh
-Host process. Restart the Harness after a code change, then re-run the table
-above.
+改这个文件对运行中的 Harness 没有任何影响：DSH 按包名缓存每个插件模块，只有全新的 Host 进程才会加载替换用的模块代。改完代码要重启 Harness，然后重跑上面的表。
 
-## Rollback
+## 回滚
 
-`plugin_manager` `set_bundle` with `@local/dsh-subagent-pin` disabled, or
-`remove_bundle` to delete it. Disabling disposes the wrapper in the running
-process: the delegation seam is unwrapped and children inherit the delegating
-agent's route again. No profile patch and no preset was modified for this
-plugin; removing it leaves the composition exactly as it was.
+用 `plugin_manager` 的 `set_bundle` 禁用 `@local/dsh-subagent-pin`，或用 `remove_bundle` 删除它。禁用会在运行中的进程里卸载包装：委派接缝恢复未包装状态，子代理重新继承委派方的路由。本插件没有改动任何 profile patch 或 preset；移除它之后组合与原来完全一致。
