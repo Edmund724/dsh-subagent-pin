@@ -333,7 +333,9 @@ function edited(name, from, to) {
 }
 
 test('a config key the schema does not declare is reported', () => {
-  const findings = configKeyFindings('README.md', edited('README.md', /^(\s*)source: settings/mu, '$1routeSource: settings'))
+  // The anchor names the key only, so an example that changes its value keeps this
+  // baseline working; an example that stops writing a key at all takes it down.
+  const findings = configKeyFindings('README.md', edited('README.md', /^(\s*)source: /mu, '$1routeSource: '))
 
   assert.equal(findings.length, 1, findings.join('\n'))
   assert.match(findings[0], /routeSource/)
