@@ -21,7 +21,7 @@
 | `README.md` / `README-en.md` | 人类手册（完整互译）：怎么用、为什么这么用 |
 | `CONTEXT.md` | 词表与判据：八个决定/原因词，以及划界规则 |
 | `.agents/notes/` | 决策记录（为什么这样做、为什么不做）；索引见 `.agents/notes/README.md` |
-| `test/` | 8 个 `node:test` 文件、108 项，不启动 Harness |
+| `test/` | 9 个 `node:test` 文件，不启动 Harness；逐文件拆分与总数见 `README.md`「已验证」 |
 | `test-support/host-doubles.mjs` | 真实 Cordis 上的替身 |
 | `tools/read-session.mjs` | 内部证据读取器：切分拼接的 zstd 帧、按完整 type 选事件 |
 | `tools/verify-session.mjs` | `verify` 入口（`exports` 的 `./verify`） |
@@ -32,7 +32,7 @@
 
 ```powershell
 npm install                          # 首次；CI 与本地验证用 npm ci
-npm test                             # node --test "test/*.test.mjs"，108 项
+npm test                             # node --test "test/*.test.mjs"
 npm run verify -- --lead <会话日志>   # 现场核对：断言那一次运行里每个 child 的路由
 ```
 

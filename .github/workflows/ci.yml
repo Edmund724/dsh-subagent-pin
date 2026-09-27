@@ -1,6 +1,6 @@
 # CI：装依赖，跑仓库里唯一的测试入口。
 #
-# `npm test` 是 `node --test "test/*.test.mjs"`（108 项）。它不启动 Harness、
+# `npm test` 是 `node --test "test/*.test.mjs"`。它不启动 Harness、
 # 不读活 Settings、不需要凭据，因此在普通 runner 上就能跑完。
 #
 # 现场核对另一半（`npm run verify -- --lead <会话日志>`）需要一次真实运行的

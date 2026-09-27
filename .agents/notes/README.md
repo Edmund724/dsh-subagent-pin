@@ -47,5 +47,4 @@
 
 `.agents/notes/**` 在 `package.json` 的 `files` 里：`README.md` 的散文点名了
 `.agents/notes` 这个路径，而 `test/docs.test.mjs` 的守卫要求被点名的仓库路径落在
-`files` 里。结果就是打包产物上 `npm install && npm test` 能跑出与仓库一致的
-108 项。这里写下的理由因此也是随包发行物的一部分。
+`files` 里。结果就是打包产物上 `npm install && npm test` 能跑出与仓库一致的结果。这里写下的理由因此也是随包发行物的一部分。
