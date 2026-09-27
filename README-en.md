@@ -4,17 +4,17 @@
 
 > A Host plugin for DeepSeek Harness: it makes the models checked in the Settings subagent-model row the default route of every fresh subagent delegation that names no route of its own, and passes a delegation that names `provider` or `model` through untouched. Installed as a bundle into a profile (in this environment: profile `desktop`, row `subagent-pin`); disabling it restores the original shape.
 
-## Install
-
-Install the package with the plugin manager: `plugin_manager`'s `install_bundle`, with `target` set to the absolute directory of this package. The installer both installs the package and attaches the bundle to the current profile — afterwards the package shows up in the profile `package.json`'s `dsh.profile.bundles` — and the shipped `cordis.patch.yml` inserts the `subagent-pin` row with its default `source: settings`, so there is no config to write. After installing, probe with a `subagent` that names no model field and check the child runs the list's default (if it still inherits the parent route, that row did not mount — restart the Harness and try again); the checklist is in [Tests and live checks](docs/verification.md).
-
-**Installing from a local directory needs one `npm install` in the package directory first.** The installer links a local directory and does not pull in that package's own dependencies (`@deepseek-ai/schemastery`), while Node resolves an import along the link's real path — so the dependencies are found only when they sit in the package directory, and putting them in the profile's node_modules does not help. The symptom of a missing dependency is a row that never mounted: delegations keep inheriting the parent route and the installation result reports `failed`. A restart does not fix that; install the dependencies and restart, without reinstalling anything in the profile.
-
 ## Why it is needed
 
 The Settings row for the subagent model is an allow-list plus a discovery tool: it constrains a route that is named explicitly, but it never steers a delegation to a listed model. A child's options always spread the parent's route first, and the allow-list check only fires when a model-facing choice occurred (in the source's own words: *Pure inheritance remains outside this policy because no model-facing choice occurred*), so a delegation that names no model field runs the main agent's model; teammates, workflow `agent()` and nested delegations have no model input at all and can only inherit. The setting looks applied while the child keeps running the main agent's model.
 
 Turning the checkmarks into the default of every delegation is only possible inside the Host: the one point all four delegation paths share — the delegation tools, teammates, workflow and nested delegations — is `ctx.subagents.start()` / `startContinuable()`, which neither tool configuration nor the preset plane fully reaches. This plugin is a Host plugin wrapped around exactly those two methods, injecting the route before the provider resolves the child's options. The injected route freezes into the child's `subagent/descriptor` and survives cold resume.
+
+## Install
+
+1. Run `npm install` in this package directory — the profile only receives a link, so the dependencies are yours to install (`@deepseek-ai/schemastery`). Without them the plugin does not mount, delegations keep inheriting the parent route, and no restart fixes it
+2. `plugin_manager`'s `install_bundle`, with `target` set to the absolute directory of this package: it installs the package, attaches it to the profile, and lets the shipped `cordis.patch.yml` insert the `subagent-pin` row (`source: settings`)
+3. Restart the Harness, then probe with a `subagent` that names no model field — the child should run the Settings list's default. The checklist is in [Tests and live checks](docs/verification.md)
 
 ## Model source
 
@@ -83,5 +83,5 @@ Disable `@edmund724/dsh-subagent-pin` with `plugin_manager`'s `set_bundle`, or d
 ## Further reading
 
 - [The seam and the Host contract](docs/seam.md) — why the wrapper lives on descriptors, what activation checks, and what a capability downgrade warns about.
-- [Tests and live checks](docs/verification.md) — the 128 unit tests by file, how to use `verify`, and the checklist to run after a Harness upgrade.
+- [Tests and live checks](docs/verification.md) — the 129 unit tests by file, how to use `verify`, and the checklist to run after a Harness upgrade.
 - [The glossary](CONTEXT.md) — the four decisions and the two exemption reasons; read it before touching the policy.
