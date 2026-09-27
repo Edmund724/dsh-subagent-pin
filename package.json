@@ -16,14 +16,11 @@
     "host-contract.js",
     "cordis.patch.yml",
     "README.md",
+    "README-en.md",
     "CONTEXT.md",
     "locale/*.json",
     "tools/*.mjs"
   ],
-  "meta": {
-    "title": "Subagent Pin",
-    "description": "Gives every fresh subagent delegation that names no route the configured LLM route."
-  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
