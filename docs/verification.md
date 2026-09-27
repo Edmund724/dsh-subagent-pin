@@ -4,7 +4,7 @@
 
 前提只有一个 Node ≥ 22.15（`package.json` 的 `engines`；两个工具要 zstd。`PATH` 上没有 `node` 时用 Harness 自带的运行时：`<Harness 安装目录>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`；插件**运行时**不加载本仓库的 Node，它跑在 Harness 自带运行时上）。运行时依赖 `@deepseek-ai/schemastery`、契约测试依赖真实 Host 库（`@deepseek-ai/cordis`、`@deepseek-ai/dsh-app-boot`）都按精确版本锁在 `package.json`（后两者只给测试用），全新克隆先 `npm install`。测试不启动 Harness、不要凭据或网络；现场核对另需一个已启用本插件的运行中 Harness。
 
-单元测试 —— 128 项（`config-schema` 10 · `route-policy` 32 · `plugin` 29 · `host-contract` 17 · `docs` 12 · `read-session` 5 · `verify-session` 9 · `package` 5 · `patch` 5 · `maintainer-docs` 3 · `tarball` 1；在 Node 25.8.0 上验证）：
+单元测试 —— 129 项（`config-schema` 10 · `route-policy` 32 · `plugin` 29 · `host-contract` 17 · `docs` 12 · `read-session` 5 · `verify-session` 9 · `package` 6 · `patch` 5 · `maintainer-docs` 3 · `tarball` 1；在 Node 25.8.0 上验证）：
 
 ```powershell
 npm install

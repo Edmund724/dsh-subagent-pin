@@ -39,7 +39,7 @@ Settings 的「子代理模型」行是一份权限清单加发现工具：它�
 
 ```yaml
 - id: subagent-pin
-  name: '@local/dsh-subagent-pin'
+  name: '@edmund724/dsh-subagent-pin'
   config:
     source: settings            # 默认
     defaultModel:               # 可选；默认取 Settings 列表第一个
@@ -52,7 +52,7 @@ Settings 的「子代理模型」行是一份权限清单加发现工具：它�
 
 ```yaml
 - id: subagent-pin
-  name: '@local/dsh-subagent-pin'
+  name: '@edmund724/dsh-subagent-pin'
   config:
     source: pinned
     provider: <provider-id>
@@ -72,7 +72,7 @@ Settings 的「子代理模型」行是一份权限清单加发现工具：它�
 
 ## 回滚
 
-用 `plugin_manager` 的 `set_bundle` 禁用 `@local/dsh-subagent-pin`，或 `remove_bundle` 删除。禁用会在运行中的进程里卸载包装：接缝恢复未包装状态，子代理重新继承委派方的路由。本插件没动过任何 profile patch 或 preset，移除后组合与原来完全一致。
+用 `plugin_manager` 的 `set_bundle` 禁用 `@edmund724/dsh-subagent-pin`，或 `remove_bundle` 删除。禁用会在运行中的进程里卸载包装：接缝恢复未包装状态，子代理重新继承委派方的路由。本插件没动过任何 profile patch 或 preset，移除后组合与原来完全一致。
 
 ## 深入阅读
 

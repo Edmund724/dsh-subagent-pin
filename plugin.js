@@ -44,7 +44,7 @@
  * `host-contract.js` is absent or unreachable, instead of silently leaving
  * children on the parent route.
  *
- * @module @local/dsh-subagent-pin
+ * @module @edmund724/dsh-subagent-pin
  */
 
 import { PREFIX, decideDelegation, renderRoutes, resolveAuthorization } from './route-policy.js'

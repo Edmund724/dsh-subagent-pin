@@ -16,7 +16,7 @@
  * `route-policy.js` holds the decisions. This module holds what the Host must
  * look like for those decisions to reach the seam at all.
  *
- * @module @local/dsh-subagent-pin/host-contract
+ * @module @edmund724/dsh-subagent-pin/host-contract
  */
 
 import { PREFIX } from './route-policy.js'

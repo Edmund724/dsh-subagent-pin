@@ -26,7 +26,7 @@
  * Exit status: 0 every check passed, 1 a check failed, 2 the arguments or a log
  * could not be read.
  *
- * @module @local/dsh-subagent-pin/tools/verify-session
+ * @module @edmund724/dsh-subagent-pin/tools/verify-session
  */
 
 import { existsSync } from 'node:fs'

@@ -1,7 +1,7 @@
-# `@local/dsh-subagent-pin`: give delegations that name no route the default
+# `@edmund724/dsh-subagent-pin`: give delegations that name no route the default
 # route of the models checked in Settings (policy table: README 「策略」).
 - insert:
     - id: subagent-pin
-      name: '@local/dsh-subagent-pin'
+      name: '@edmund724/dsh-subagent-pin'
       config:
         source: settings

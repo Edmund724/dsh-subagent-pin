@@ -1,6 +1,6 @@
 # AGENTS.md
 
-`@local/dsh-subagent-pin` 是装在包外的一行 Host 插件：它包住 `ctx.subagents` 的
+`@edmund724/dsh-subagent-pin` 是装在包外的一行 Host 插件：它包住 `ctx.subagents` 的
 `start` / `startContinuable`，给**没有自己指定路由**的新建委派补上路由清单里的
 默认项。它跑在 Harness 自带的运行时上，随包安装进某个 profile。
 

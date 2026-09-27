@@ -25,7 +25,14 @@ import { repositoryPaths, ships } from '../test-support/package-files.mjs'
 /** The repository root, where `package.json` sits. */
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
-const { exports: subpaths, files, icon } = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
+const {
+  exports: subpaths,
+  files,
+  icon,
+  name,
+  publishConfig,
+  private: isPrivate,
+} = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
 
 test('every subpath export resolves to a file in this repository', () => {
   const targets = Object.entries(subpaths).filter(([key]) => key !== './package.json')
@@ -83,6 +90,28 @@ test('the manifest icon is one DSH will render, and it ships', () => {
     // artwork draws on a 36×36 viewBox; another box would put this glyph out of
     // proportion with the family it sits beside.
     assert.match(readFileSync(file, 'utf8'), /viewBox="0 0 36 36"/u, `icon "${icon}" must draw on the official 36×36 viewBox`)
+  }
+})
+
+// ── the manifest npm has to accept before a name can be installed ───────────
+
+test('the manifest is publishable under a name a registry can resolve', () => {
+  // The Plugin Manager's first field resolves a bare name against a registry
+  // (`pluginManager.inspect`); a manifest npm refuses to publish can never be
+  // installed that way. `private: true` refuses outright, and npm defaults a
+  // scoped name to restricted access, so `npm publish` fails for an account
+  // without a paid plan unless the manifest asks for public access. The `@local`
+  // scope is the placeholder this repository used while the profile linked the
+  // directory directly (`link:D:/DSH/dsh-subagent-pin`); no npm org serves it, so
+  // a lookup by that name answers 404 on every registry the dialog offers.
+  assert.equal(isPrivate ?? false, false, 'package.json sets `private: true`, so npm refuses to publish it')
+  assert.notEqual(name.split('/')[0], '@local', `package.json is named "${name}", a scope no registry serves`)
+  if (name.startsWith('@')) {
+    assert.equal(
+      publishConfig?.access,
+      'public',
+      `scoped name "${name}" needs publishConfig.access "public", or npm publishes it restricted`,
+    )
   }
 })
 

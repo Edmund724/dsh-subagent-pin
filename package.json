@@ -1,10 +1,12 @@
 {
-  "name": "@local/dsh-subagent-pin",
+  "name": "@edmund724/dsh-subagent-pin",
   "version": "1.0.0",
-  "private": true,
   "type": "module",
   "description": "Gives every fresh subagent delegation that names no route the configured LLM route.",
   "icon": "./icon.svg",
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": "./plugin.js",
     "./verify": "./tools/verify-session.mjs",

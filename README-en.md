@@ -39,7 +39,7 @@ The two blocks below are **examples: every writable key**, not the shipped conte
 
 ```yaml
 - id: subagent-pin
-  name: '@local/dsh-subagent-pin'
+  name: '@edmund724/dsh-subagent-pin'
   config:
     source: settings            # default
     defaultModel:               # optional; defaults to the first Settings model
@@ -52,7 +52,7 @@ Example two, the static mode, for a Host without the Settings row:
 
 ```yaml
 - id: subagent-pin
-  name: '@local/dsh-subagent-pin'
+  name: '@edmund724/dsh-subagent-pin'
   config:
     source: pinned
     provider: <provider-id>
@@ -72,7 +72,7 @@ Editing the file has no effect on a running Harness: DSH caches each plugin modu
 
 ## Rollback
 
-Disable `@local/dsh-subagent-pin` with `plugin_manager`'s `set_bundle`, or delete it with `remove_bundle`. Disabling disposes the wrapper in the running process: the seam is unwrapped and children inherit the delegating agent's route again. No profile patch and no preset was modified for this plugin; removing it leaves the composition exactly as it was.
+Disable `@edmund724/dsh-subagent-pin` with `plugin_manager`'s `set_bundle`, or delete it with `remove_bundle`. Disabling disposes the wrapper in the running process: the seam is unwrapped and children inherit the delegating agent's route again. No profile patch and no preset was modified for this plugin; removing it leaves the composition exactly as it was.
 
 ## Further reading
 
