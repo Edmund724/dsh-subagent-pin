@@ -97,4 +97,11 @@ test('the manifest icon is one DSH will render, and it ships', () => {
   assert.ok(existsSync(file), `package.json declares icon "${icon}", which is not a file in this repository`)
   assert.ok(statSync(file).size <= MAX_ICON_BYTES, `icon "${icon}" exceeds the ${MAX_ICON_BYTES} byte ceiling DSH reads icons under`)
   assert.ok(files.some((entry) => ships(entry, shipped)), `icon "${icon}" is declared but not shipped by \`files\` (it ships ${files.join(', ')})`)
+
+  if (extname(icon).toLowerCase() === '.svg') {
+    // A card renders the artwork at 36px and a row at 30px, the slot the official
+    // artwork draws on a 36×36 viewBox; another box would put this glyph out of
+    // proportion with the family it sits beside.
+    assert.match(readFileSync(file, 'utf8'), /viewBox="0 0 36 36"/u, `icon "${icon}" must draw on the official 36×36 viewBox`)
+  }
 })
