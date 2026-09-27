@@ -20,8 +20,9 @@
 | `cordis.patch.yml` | 随包 patch：向 profile insert 一行（`id: subagent-pin`） |
 | `README.md` / `README-en.md` | 人类手册（完整互译）：怎么用、为什么这么用 |
 | `CONTEXT.md` | 词表与判据：八个决定/原因词，以及划界规则 |
+| `docs/` | 渐进式披露的深入文档：接缝与 Host 契约、测试与现场核对（README「深入阅读」指向它们） |
 | `.agents/notes/` | 决策记录（为什么这样做、为什么不做）；索引见 `.agents/notes/README.md` |
-| `test/` | `node:test` 文件，不启动 Harness；逐文件拆分与总数见 `README.md`「已验证」 |
+| `test/` | `node:test` 文件，不启动 Harness；逐文件拆分与总数见 `docs/verification.md` |
 | `test-support/host-doubles.mjs` | 真实 Cordis 上的替身 |
 | `tools/read-session.mjs` | 内部证据读取器：切分拼接的 zstd 帧、按完整 type 选事件 |
 | `tools/verify-session.mjs` | `verify` 入口（`exports` 的 `./verify`） |
@@ -37,13 +38,14 @@ npm run verify -- --lead <会话日志>   # 现场核对：断言那一次运行
 ```
 
 `npm test` 不需要 Harness、凭据或网络。`verify` 需要一次真实运行的持久化日志，
-指标与期望值见 `README.md` 的「已验证」。
+指标与期望值见 `docs/verification.md`。
 
 ## 文档分层与真源
 
 四层，各层只引用、不复述：
 
-1. **人类手册** —— `README.md`（主，中文）与 `README-en.md`（完整互译），随包发布；
+1. **人类手册** —— `README.md`（主，中文）与 `README-en.md`（完整互译）是入口，
+   `docs/` 放渐进式披露的深入内容（接缝、验证），随包发布；
 2. **词表与判据** —— `CONTEXT.md` 是 `pin` / `pass` / `exempt` / `reject` 与
    `named` / `opaque` / `inherited` / `capability` 的唯一定义处；
 3. **实现者层** —— 各模块 JSDoc（`route-policy.js`、`config-schema.js`、
@@ -96,13 +98,13 @@ npm run verify -- --lead <会话日志>   # 现场核对：断言那一次运行
   它把每条相对链接**从文档自己所在目录**解析（笔记索引指向各条记录用的就是这种），
   再断言引用都仍然存在。它看不到的边界写在那个文件头部。
 - 本文件进 `files`：README 的散文点名了它，而文档守卫要求被点名的仓库路径随包。
-- 测试数量写在 `README.md`「已验证」那一句里；增删测试时同步它。
+- 测试数量写在 `docs/verification.md` 的那一句里；增删测试时同步它。
 - 现场核对的生产证据**无法自动化**：`verify` 验的是"那一次"运行，不是"现在"
   （理由见 `2026-09-27-现场核对的自动化边界.md`）。
 - 动了 `host-contract.js` 或升级 Harness 后，先跑 `test/host-contract.test.mjs`
-  （对着锁死的 Host 库断言），再按 `README.md`「已验证」表现场核对。
+  （对着锁死的 Host 库断言），再按 `docs/verification.md` 的核对表现场核对。
 - 只有一条链**纯靠人工同步**，没有任何测试会因它落后而变红：改了
-  `host-contract.js` 的形状假设清单（增删一项、改 level）→ 两份 README「已验证」
+  `host-contract.js` 的形状假设清单（增删一项、改 level）→ `docs/verification.md`
   里讲这份清单、锁死的三个包版本与 `config-schema.js` 的 `THINKING_LEVELS` 耦合的
   部分要跟着改。随包配置那一条已有守卫：`test/patch.test.mjs` 钉死
   `cordis.patch.yml` 的键与取值，`test/docs.test.mjs` 钉 README 示例写出的每个键

@@ -33,7 +33,7 @@
 
 ## Host 契约（host contract）
 
-插件对 Host 的**形状假设**：由 `host-contract.js` 声明一次、`apply()` 激活时检查一次，`test/host-contract.test.mjs` 再对着锁死的 Host 库断言一次。分两级：`fail` 级拒绝激活，`warn` 级只警告一次；逐条清单与理由在 `host-contract.js` 的 JSDoc，锁定的库版本见 README 的「已验证」。
+插件对 Host 的**形状假设**：由 `host-contract.js` 声明一次、`apply()` 激活时检查一次，`test/host-contract.test.mjs` 再对着锁死的 Host 库断言一次。分两级：`fail` 级拒绝激活，`warn` 级只警告一次；逐条清单与理由在 `host-contract.js` 的 JSDoc，锁定的库版本见 `docs/verification.md`。
 
 ## 入口（origin）
 
