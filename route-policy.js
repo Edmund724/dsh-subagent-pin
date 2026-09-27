@@ -36,9 +36,14 @@
 /** The prefix every rejection and notice carries. */
 export const PREFIX = 'subagent-pin: '
 
-/** Render the allowed routes for one diagnostic. */
+/**
+ * Render the allowed routes for one diagnostic.
+ *
+ * Every caller renders a list this module already validated, so a missing field
+ * is a programming error rather than a value to paper over with a `?`.
+ */
 export function renderRoutes(routes) {
-  return routes.map((route) => `${route?.provider ?? '?'}/${route?.model ?? '?'}`).join(', ')
+  return routes.map((route) => `${route.provider}/${route.model}`).join(', ')
 }
 
 /** Reject one delegation with a message written for the operator who must fix it. */
