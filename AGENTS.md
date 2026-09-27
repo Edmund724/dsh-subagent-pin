@@ -87,12 +87,12 @@ npm run verify -- --lead <会话日志>   # 现场核对：断言那一次运行
   - 两份 README 的 `## ` 章节数量与顺序一致。
   它自己带一组坏基线（改坏的真实文档必须报出来、空文档必须说没得可查），改那些判断
   函数时要一起看 —— 判断函数收文本、返回 findings，就是为了这个。
-- 动了 `files` / `exports` 就同时跑 `test/package.test.mjs`（5 项）：它反向要求每个
+- 动了 `files` / `exports` 就同时跑 `test/package.test.mjs`：它反向要求每个
   `files` 条目仍匹配仓库里的东西、每个可导入子路径都被 `files` 覆盖。
 - 动了 `files` 也跑 `test/tarball.test.mjs`：它拿真实 packlist（`npm pack --dry-run
   --json`）与 `files` 对拍，断言承诺的每个路径都在包里。那一面手写匹配器看不到，
   而打包产物才是装进 profile 的东西；它是唯一要动用 npm 的一项，仍不联网。
-- 改了本文件或 `.agents/notes/` 下的文档就跑 `test/maintainer-docs.test.mjs`（3 项）：
+- 改了本文件或 `.agents/notes/` 下的文档就跑 `test/maintainer-docs.test.mjs`：
   它把每条相对链接**从文档自己所在目录**解析（笔记索引指向各条记录用的就是这种），
   再断言引用都仍然存在。它看不到的边界写在那个文件头部。
 - 本文件进 `files`：README 的散文点名了它，而文档守卫要求被点名的仓库路径随包。
@@ -101,3 +101,11 @@ npm run verify -- --lead <会话日志>   # 现场核对：断言那一次运行
   （理由见 `2026-09-27-现场核对的自动化边界.md`）。
 - 动了 `host-contract.js` 或升级 Harness 后，先跑 `test/host-contract.test.mjs`
   （对着锁死的 Host 库断言），再按 `README.md`「已验证」表现场核对。
+- 两条链**只有人工同步**，没有任何测试会因它们落后而变红：
+  - 改了 `host-contract.js` 的形状假设清单（增删一项、改 level）→ 两份 README
+    「已验证」的最后一行与它下面两段讲的就是这份清单、锁死的三个包版本，以及
+    `config-schema.js` 的 `THINKING_LEVELS` 那处耦合；
+  - 改了 `cordis.patch.yml` 或 `package.json` 的 `dsh.bundle.patch` → 两份 README
+    「配置」段的两段示例要跟着改：`test/patch.test.mjs` 只钉随包配置本身，
+    `test/docs.test.mjs` 只钉 README 里出现的**键**被 schema 声明，示例的**取值**
+    没人管。
