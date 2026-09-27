@@ -15,8 +15,8 @@
  * Plugin Manager card silently.
  */
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync, statSync } from 'node:fs'
-import { dirname, extname, isAbsolute, join, resolve } from 'node:path'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
@@ -103,5 +103,33 @@ test('the manifest icon is one DSH will render, and it ships', () => {
     // artwork draws on a 36×36 viewBox; another box would put this glyph out of
     // proportion with the family it sits beside.
     assert.match(readFileSync(file, 'utf8'), /viewBox="0 0 36 36"/u, `icon "${icon}" must draw on the official 36×36 viewBox`)
+  }
+})
+
+// ── the `files` array against the tree it names ─────────────────────────────
+
+/** Every path under the repository root, with npm's own ignores left out. */
+function walk(directory) {
+  const found = []
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (entry.name === 'node_modules' || entry.name === '.git') continue
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) found.push(...walk(path))
+    else found.push(path)
+  }
+  return found
+}
+
+test('every files entry still matches something in this repository', () => {
+  // A stale entry ships nothing and hides the disappearance: the document guard
+  // recognizes a path by its first segment, so a directory that is gone takes the
+  // check with it instead of failing. Only a pattern needs the walk; a plain name
+  // is matched against the tree directly.
+  const present = walk(ROOT).map((path) => relative(ROOT, path).replaceAll(sep, '/'))
+  for (const entry of files) {
+    assert.ok(
+      entry.includes('*') ? present.some((path) => ships(entry, path)) : existsSync(join(ROOT, entry)),
+      `the "files" entry "${entry}" matches nothing in this repository`,
+    )
   }
 })

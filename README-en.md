@@ -206,9 +206,9 @@ tests run against the real Host libraries (`@deepseek-ai/cordis`,
 installs once with `npm install`. The live table additionally needs a running
 Harness with this plugin enabled.
 
-Unit tests — 107 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 27 ·
+Unit tests — 108 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 27 ·
 `host-contract` 15 · `docs` 5 · `read-session` 5 · `verify-session` 9 ·
-`package` 4), no Harness needed (verified on Node 25.8.0). From
+`package` 5), no Harness needed (verified on Node 25.8.0). From
 the repository root:
 
 ```powershell
@@ -262,7 +262,8 @@ they cover reading concatenated zstd frames, the CLI's exact filter and untrimme
 printing, `verify`'s route assertions over one run (including a missing child
 log, a descriptor disagreeing with its own header, and an expectation outside the
 frozen list), and `exports` agreeing with `files` plus the manifest `icon`
-existing and shipping.
+existing, shipping, and drawing on the official 36×36 viewBox — every `files`
+entry still matching something in the tree.
 
 Live checks — manual, one tool call each, against a Harness with the plugin
 enabled. **Producing the evidence cannot be automated** (the logs only exist
