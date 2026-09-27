@@ -12,9 +12,20 @@ Settings 的「子代理模型」行是一份权限清单加发现工具：它�
 
 ## 安装
 
-1. 在本包目录跑 `npm install` —— profile 里只装进来一个链接，本包的依赖得自己装（`@deepseek-ai/schemastery`）。缺它时插件挂不上，委派照旧继承父路由，重启也修不好
-2. `plugin_manager` 的 `install_bundle`，`target` 填本包目录的绝对路径：装包、接进 profile，并让随包的 `cordis.patch.yml` 插入 `subagent-pin` 一行（`source: settings`）
-3. 重启 Harness，用一个不带模型字段的 `subagent` 探针 —— 子代理应跑 Settings 清单的默认项。核对表见[测试与现场核对](docs/verification.md)
+1. `git clone https://github.com/Edmund724/dsh-subagent-pin.git <克隆目录>`，然后在克隆目录里 `npm install`
+2. `~/.dsh/profiles/<profile>/package.json` 的 `dependencies` 写 `"@edmund724/dsh-subagent-pin": "link:<克隆目录绝对路径>"`
+3. `~/.dsh/profiles/<profile>/cordis.patch.yml` 追加挂载行（这一行的 `config` 就是本插件的设置表单：`source` / `defaultModel` / `reasoningEffort`，设置页写的就是它；不写则全部用 schema 默认值）：
+
+```yaml
+- id: subagent-pin
+  name: '@edmund724/dsh-subagent-pin'
+  config:
+    source: settings
+```
+
+4. 在 `~/.dsh/profiles/<profile>` 执行 `pnpm install`，然后重启 Harness
+
+更新：`git pull && npm install` → 重启 Harness 即可（host 插件按包名缓存模块代数，改文件只有重启才加载新一代）。切回 npm 通道时，把依赖改回 npm 上的版本号再执行 pnpm install。
 
 ## 模型来源
 

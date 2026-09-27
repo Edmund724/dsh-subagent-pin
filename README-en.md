@@ -12,9 +12,20 @@ Turning the checkmarks into the default of every delegation is only possible ins
 
 ## Install
 
-1. Run `npm install` in this package directory — the profile only receives a link, so the dependencies are yours to install (`@deepseek-ai/schemastery`). Without them the plugin does not mount, delegations keep inheriting the parent route, and no restart fixes it
-2. `plugin_manager`'s `install_bundle`, with `target` set to the absolute directory of this package: it installs the package, attaches it to the profile, and lets the shipped `cordis.patch.yml` insert the `subagent-pin` row (`source: settings`)
-3. Restart the Harness, then probe with a `subagent` that names no model field — the child should run the Settings list's default. The checklist is in [Tests and live checks](docs/verification.md)
+1. `git clone https://github.com/Edmund724/dsh-subagent-pin.git <clone directory>`, then run `npm install` in it
+2. In the `dependencies` of `~/.dsh/profiles/<profile>/package.json`, write `"@edmund724/dsh-subagent-pin": "link:<absolute clone path>"`
+3. Append the mount row to `~/.dsh/profiles/<profile>/cordis.patch.yml` (the row's `config` is this plugin's settings form: `source` / `defaultModel` / `reasoningEffort` — the Settings page writes exactly it; omit it and every value is the schema default):
+
+```yaml
+- id: subagent-pin
+  name: '@edmund724/dsh-subagent-pin'
+  config:
+    source: settings
+```
+
+4. Run `pnpm install` in `~/.dsh/profiles/<profile>`, then restart the Harness
+
+Update: `git pull && npm install` → restart the Harness (a host plugin caches its module generation by package name, so only a restart loads a new one). To go back to the npm channel, write the published version back into the dependency and run pnpm install again.
 
 ## Model source
 
