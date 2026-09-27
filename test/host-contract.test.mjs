@@ -39,10 +39,25 @@ test('the shared Host double satisfies the contract it stands for', () => {
   assert.deepEqual(assertSeam(ctx), [])
 })
 
+test('the contract refuses activation when the Host carries no subagents service', () => {
+  // Without this item the next one reads a method off `undefined` and activation
+  // reports a TypeError instead of the row that names the missing composition.
+  assert.throws(() => assertSeam({}), /the `subagents` service is unavailable/)
+  assert.throws(() => assertSeam({ subagents: 'spawn' }), /the `subagents` service is unavailable/)
+})
+
 test('the contract refuses activation when the delegation methods are absent', () => {
   const { ctx } = hostDoubles({ service: { getProvider: () => undefined } })
 
   assert.throws(() => assertSeam(ctx), /has no start\(\) method/)
+})
+
+test('the contract refuses activation when the service instance is not extensible', () => {
+  // The shadow probe below refuses a frozen instance too, but it reports the
+  // TypeError from `defineProperty`; this item is the one that says what it means.
+  const subagents = Object.preventExtensions({ start() {}, startContinuable() {}, getProvider: () => undefined })
+
+  assert.throws(() => assertSeam({ subagents }), /is not extensible, so nothing was pinned/)
 })
 
 test('the contract reports a degraded registry as a warning, not a refusal', () => {

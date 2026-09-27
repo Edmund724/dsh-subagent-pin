@@ -18,6 +18,20 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**
+ * One text, line by line, with the number each line is on.
+ *
+ * The primitive: the guards run their judgement on a document they may have
+ * edited first, so what they read is text, and only the convenience below goes
+ * back to the file.
+ *
+ * @param text - the whole document.
+ * @returns the lines, in order, as `{ text, number }`.
+ */
+export function lines(text) {
+  return text.split(/\r?\n/).map((line, offset) => ({ text: line, number: offset + 1 }))
+}
+
+/**
  * One file, line by line, with the number each line is on.
  *
  * @param root - absolute path of the repository root.
@@ -25,26 +39,23 @@ import { join } from 'node:path'
  * @returns the lines, in order, as `{ text, number }`.
  */
 export function numbered(root, name) {
-  return readFileSync(join(root, name), 'utf8')
-    .split(/\r?\n/)
-    .map((text, offset) => ({ text, number: offset + 1 }))
+  return lines(readFileSync(join(root, name), 'utf8'))
 }
 
 /**
- * The relative link targets of one file, with the line each sits on.
+ * The relative link targets of one already-split text, with the line each sits on.
  *
  * A target that is only a fragment, or that carries a URL scheme, is not a claim
  * about this repository and is dropped. What remains is written relative to the
  * directory the document sits in — that is how `.agents/notes/README.md` links
  * its own entries — so the caller resolves it from there.
  *
- * @param root - absolute path of the repository root.
- * @param name - repository-relative path of the document.
+ * @param rows - the document, as `lines()` returned it.
  * @returns the targets, with any `#fragment` stripped, as `{ target, number }`.
  */
-export function relativeLinks(root, name) {
+export function linkTargets(rows) {
   const found = []
-  for (const row of numbered(root, name)) {
+  for (const row of rows) {
     for (const [, target] of row.text.matchAll(/\]\(\s*<?([^)\s>]+)>?/g)) {
       if (target.startsWith('#') || /^[A-Za-z][A-Za-z0-9+.-]*:/.test(target)) continue
       found.push({ target: target.split('#')[0], number: row.number })
@@ -54,21 +65,42 @@ export function relativeLinks(root, name) {
 }
 
 /**
- * Every backticked token of one file, with the line it sits on.
+ * The relative link targets of one file, with the line each sits on.
+ *
+ * @param root - absolute path of the repository root.
+ * @param name - repository-relative path of the document.
+ * @returns the targets, with any `#fragment` stripped, as `{ target, number }`.
+ */
+export function relativeLinks(root, name) {
+  return linkTargets(numbered(root, name))
+}
+
+/**
+ * Every backticked token of one already-split text, with the line it sits on.
  *
  * Raw: the guards that consume this decide what counts, because one of them
  * requires its tokens to be shipped and the other only that they exist.
+ *
+ * @param rows - the document, as `lines()` returned it.
+ * @returns every `` `token` `` on every line, as `{ token, number }`.
+ */
+export function codeSpans(rows) {
+  const tokens = []
+  for (const row of rows) {
+    for (const [, token] of row.text.matchAll(/`([^`\n]+)`/g)) tokens.push({ token, number: row.number })
+  }
+  return tokens
+}
+
+/**
+ * Every backticked token of one file, with the line it sits on.
  *
  * @param root - absolute path of the repository root.
  * @param name - repository-relative path of the document.
  * @returns every `` `token` `` on every line, as `{ token, number }`.
  */
 export function codeSpanTokens(root, name) {
-  const tokens = []
-  for (const row of numbered(root, name)) {
-    for (const [, token] of row.text.matchAll(/`([^`\n]+)`/g)) tokens.push({ token, number: row.number })
-  }
-  return tokens
+  return codeSpans(numbered(root, name))
 }
 
 /**

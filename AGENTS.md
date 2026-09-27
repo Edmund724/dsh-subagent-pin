@@ -80,11 +80,13 @@ npm run verify -- --lead <会话日志>   # 现场核对：断言那一次运行
 ### 文档与验证纪律
 
 - 改了 `README.md` / `README-en.md` / `CONTEXT.md` 就必须跑 `npm test`；文档守卫
-  （`test/docs.test.mjs`，5 项）会断言：
+  （`test/docs.test.mjs`）会断言：
   - 两份 README 的 `config:` 段写的每个键都是 `config-schema.js` 声明过的；
   - `route-policy.js` 产出的每个决定词都是 `CONTEXT.md` 定义过的；
   - 散文点名的仓库路径与相对链接都真实存在，且落在 `package.json` 的 `files` 里；
   - 两份 README 的 `## ` 章节数量与顺序一致。
+  它自己带一组坏基线（改坏的真实文档必须报出来、空文档必须说没得可查），改那些判断
+  函数时要一起看 —— 判断函数收文本、返回 findings，就是为了这个。
 - 动了 `files` / `exports` 就同时跑 `test/package.test.mjs`（5 项）：它反向要求每个
   `files` 条目仍匹配仓库里的东西、每个可导入子路径都被 `files` 覆盖。
 - 动了 `files` 也跑 `test/tarball.test.mjs`：它拿真实 packlist（`npm pack --dry-run

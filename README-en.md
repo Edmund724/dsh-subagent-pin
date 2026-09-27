@@ -206,8 +206,8 @@ tests run against the real Host libraries (`@deepseek-ai/cordis`,
 installs once with `npm install`. The live table additionally needs a running
 Harness with this plugin enabled.
 
-Unit tests — 117 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 27 ·
-`host-contract` 15 · `docs` 5 · `read-session` 5 · `verify-session` 9 ·
+Unit tests — 126 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 27 ·
+`host-contract` 17 · `docs` 12 · `read-session` 5 · `verify-session` 9 ·
 `package` 5 · `patch` 5 · `maintainer-docs` 3 · `tarball` 1), no Harness needed
 (verified on Node 25.8.0). From the repository root:
 
@@ -234,8 +234,10 @@ test/docs.test.mjs` runs the document guard alone — it reads the two READMEs a
 `CONTEXT.md` as text and asserts that their config keys are declared by the
 schema, their decision words are in the glossary, their relative links and the
 repository paths their prose writes by hand exist and ship, and the two READMEs
-carry the same section count; `node --test
-test/read-session.test.mjs` builds its own logs to exercise the evidence reader
+carry the same section count, and feeds each of those judgements a real document
+with one edit in it, so a guard that can fail is one that has been seen failing;
+`node --test test/read-session.test.mjs` builds its own logs to exercise the
+evidence reader
 (concatenated zstd frames, an incomplete trailing frame, the CLI's exact filter
 and untrimmed printing); `node --test test/verify-session.test.mjs` builds one
 run's two logs to exercise the `verify` command below; `node --test
@@ -270,7 +272,10 @@ Host contract itself: the proxy's three traps and its fresh wrapper per read,
 immediately and registering the returned disposer, the four Schemastery
 behaviours, the Host's `isNativeConfigSchema` and `createConfigProjector` reading
 our `Config`, and the activation self-check (a redirected write refuses
-activation, an unreadable provider record warns by name). On the evidence side
+activation, an unreadable provider record warns by name), and each of the contract's
+five items is named by a test that fails if the item is dropped — a missing
+service, a missing method, a non-extensible instance, a redirected write, an
+unreadable registry. On the evidence side
 they cover reading concatenated zstd frames, the CLI's exact filter and untrimmed
 printing, `verify`'s route assertions over one run (including a missing child
 log, a descriptor disagreeing with its own header, and an expectation outside the
@@ -284,8 +289,12 @@ config carrying nothing but `source: settings` (no `defaultModel`, no
 `reasoningEffort`). On the maintainer-document side they cover the relative links
 in `AGENTS.md` and every decision record — including the directory-relative links
 the notes index uses to reach its entries — the repository paths their prose
-writes by hand, and the decision records cited by bare file name. On the packaging
-side there is exactly one: every path `files` promises is in the packlist npm
+writes by hand, and the decision records cited by bare file name. The document
+guard also carries a bad baseline per judgement: the real document with one edit,
+which has to be reported, and an empty one, which has to be reported as nothing to
+check — so that it can fail, and cannot pass silently when it had nothing to look
+at. On the packaging side there is exactly one: every path `files` promises is in
+the packlist npm
 would really build. Where the hand-written matcher and npm's own reading part ways
 — names npm never packs, ignore files in subdirectories that still bite — only a
 real `npm pack --dry-run --json` run can tell.
