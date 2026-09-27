@@ -6,8 +6,16 @@
   "description": "Gives every fresh subagent delegation that names no route the configured LLM route.",
   "exports": {
     ".": "./plugin.js",
+    "./verify": "./tools/verify-session.mjs",
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\"",
+    "verify": "node tools/verify-session.mjs"
+  },
+  "engines": {
+    "node": ">=22.15"
   },
   "files": [
     "plugin.js",

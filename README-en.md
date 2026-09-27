@@ -191,8 +191,11 @@ run in `plugin.js` on top of the schema.
 ## Verified
 
 Every check below is stated so that it can be reproduced on another machine. The
-only prerequisite is one Node.js (unit tests: Node ≥ 20;
-`tools/read-session.mjs`: Node ≥ 22.15, for `zlib.zstdDecompressSync`) — if
+only prerequisite is one Node.js (**this repository's tests and tools all need
+Node ≥ 22.15**: `tools/read-session.mjs` uses `zlib.zstdDecompressSync`, and the
+tests build frames with `zlib.zstdCompressSync`; that floor is what `engines` in
+`package.json` states. The plugin itself loads no Node from this repository — it
+runs on the runtime the Harness ships with) — if
 `node` is not on `PATH`, use the runtime the Harness ships with, relative to the
 Harness install directory:
 `<harness>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`.
@@ -203,14 +206,19 @@ tests run against the real Host libraries (`@deepseek-ai/cordis`,
 installs once with `npm install`. The live table additionally needs a running
 Harness with this plugin enabled.
 
-Unit tests — 88 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 27 ·
-`host-contract` 15 · `docs` 4), no Harness needed (verified on Node 25.8.0). From
+Unit tests — 105 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 27 ·
+`host-contract` 15 · `docs` 4 · `read-session` 5 · `verify-session` 9 ·
+`package` 3), no Harness needed (verified on Node 25.8.0). From
 the repository root:
 
 ```powershell
 npm install
-node --test
+npm test
 ```
+
+(`npm test` is `node --test "test/*.test.mjs"`: the target is an explicit glob
+rather than Node's default test glob, and test files are always named
+`test/*.test.mjs` — doubles and helpers live in `test-support/`.)
 
 (`node --test test/config-schema.test.mjs` runs the config interface alone — it
 calls `config-schema.js` directly and needs no double; `node --test
@@ -223,7 +231,13 @@ projection against the pinned libraries, without the plugin; `node --test
 test/docs.test.mjs` runs the document guard alone — it reads the two READMEs and
 `CONTEXT.md` as text and asserts that their config keys are declared by the
 schema, their decision words are in the glossary, their relative links exist and
-ship, and the two READMEs carry the same section count, all without the plugin.)
+ship, and the two READMEs carry the same section count; `node --test
+test/read-session.test.mjs` builds its own logs to exercise the evidence reader
+(concatenated zstd frames, an incomplete trailing frame, the CLI's exact filter
+and untrimmed printing); `node --test test/verify-session.test.mjs` builds one
+run's two logs to exercise the `verify` command below; `node --test
+test/package.test.mjs` asserts that every `exports` subpath exists and is shipped
+by `files`. None of them goes through the plugin.)
 
 They cover the config interface (the native graph, the accepted and rejected
 domain, what an omitted field resolves to, and the gaps deliberately left to
@@ -240,28 +254,45 @@ Host contract itself: the proxy's three traps and its fresh wrapper per read,
 immediately and registering the returned disposer, the four Schemastery
 behaviours, the Host's `isNativeConfigSchema` and `createConfigProjector` reading
 our `Config`, and the activation self-check (a redirected write refuses
-activation, an unreadable provider record warns by name).
+activation, an unreadable provider record warns by name). On the evidence side
+they cover reading concatenated zstd frames, the CLI's exact filter and untrimmed
+printing, `verify`'s route assertions over one run (including a missing child
+log, a descriptor disagreeing with its own header, and an expectation outside the
+frozen list), and `exports` agreeing with `files`.
 
 Live checks — manual, one tool call each, against a Harness with the plugin
-enabled. `<default model>` means the list's default entry (`defaultModel` when
+enabled. **Producing the evidence cannot be automated** (the logs only exist
+after a real run), but reading it is one command: after a row, `npm run verify --
+--lead <lead session log>` reads the model list that run froze into its own
+`subagent/model-selection-policy`, finds each child's log through
+`subagent/catalog` (the Host writes it as a sibling directory named after the
+childId), and asserts that every child's `request/header` and continuable
+descriptor hold the default route. `--expect`, `--default-model` and
+`--lead-expect` supply expectations a log cannot, and `--child` points at a log
+elsewhere. It reads no live Settings and starts no Harness — it verifies **that
+run**, not now. The `verify` column below is how each row uses it.
+
+`<default model>` means the list's default entry (`defaultModel` when
 configured, otherwise the first model); the routes used as examples here
 (`opencodego`, `deepseek-v4.1-flash`) are this environment's — substitute your
 own. Session logs live at
 `$DSH_HOME/sessions/<project-dir>/<session-id>/session.v4.jsonl.zstd`
-(`$DSH_HOME` defaults to `~/.dsh`, on Windows `%USERPROFILE%\.dsh`).
+(`$DSH_HOME` defaults to `~/.dsh`, on Windows `%USERPROFILE%\.dsh`); a session
+directory is named either `<uuid>` or `session-<uuid>`, and a run's children sit
+beside it as sibling directories.
 
-| Check | How | Expected |
-|---|---|---|
-| Fresh `subagent`, no model fields | `subagent` probe asking for its `{{model}}` | `<default model>` |
-| Workflow `agent()`, no model fields | `workflow` probe returning the child's model | `<default model>` |
-| Re-checked model | re-check another model in Settings, repeat the workflow probe | the new first model (or `defaultModel`), with no restart |
-| Several models checked, one named | check two models, name the second in a `subagent` call | the child runs the second model, no error |
-| Configured `defaultModel` | point `defaultModel` at the second listed model, repeat the workflow probe | the child runs `defaultModel` |
-| Continuable child (the Agent Teams seam) | `subagent` with `run_in_background: true`, then `node tools/read-session.mjs <child session log>` | `subagent/descriptor`: `"mode":"continuable","agentProvider":"<provider-id>","agentModel":"<default model>"` |
-| Named route outside the list | workflow `agent()` naming a route outside the list (the `subagent` tool path is rejected by DSH itself first, so it cannot show this plugin) | the child **runs that route unchanged**; the plugin does not throw |
-| Lead unaffected | `node tools/read-session.mjs <lead session log> request` | `request/header` keeps the Lead's own route |
-| Disabled = unchanged | disable the bundle, then run a probe with an explicit route | the child runs that explicit route: nothing is wrapped |
-| Projection contract after a Harness upgrade (check this row first) | query `Config.listConfigs` with `entry: include:subagent-pin` (the offline part of this row is asserted in `test/host-contract.test.mjs` against the pinned library; `status` is only observable on the running Host) | `status: "schema"` and `limitations: []`; `provider` carries `minLength: 1`, the nested `defaultModel` carries `required: [provider, model]`, `source` carries `default: "settings"`, `reasoningEffort` carries a seven-level `const` domain |
+| Check | verify | How | Expected |
+|---|---|---|---|
+| Fresh `subagent`, no model fields | default | `subagent` probe asking for its `{{model}}` | `<default model>` |
+| Workflow `agent()`, no model fields | default | `workflow` probe returning the child's model | `<default model>` |
+| Re-checked model | default | re-check another model in Settings, repeat the workflow probe | the new first model (or `defaultModel`), with no restart |
+| Several models checked, one named | `--expect <second route>` | check two models, name the second in a `subagent` call | the child runs the second model, no error |
+| Configured `defaultModel` | `--default-model <second route>` | point `defaultModel` at the second listed model, repeat the workflow probe | the child runs `defaultModel` |
+| Continuable child (the Agent Teams seam) | default | `subagent` with `run_in_background: true`, then `node tools/read-session.mjs <child session log>` (`verify` also asserts the descriptor agrees with the child's own header) | `subagent/descriptor`: `"mode":"continuable","agentProvider":"<provider-id>","agentModel":"<default model>"` |
+| Named route outside the list | `--expect <outside route>` | workflow `agent()` naming a route outside the list (the `subagent` tool path is rejected by DSH itself first, so it cannot show this plugin) | the child **runs that route unchanged**; the plugin does not throw |
+| Lead unaffected | `--lead-expect <Lead route>` | examine the same run's lead session log | `request/header` keeps the Lead's own route |
+| Disabled = unchanged | — | disable the bundle, then run a probe with an explicit route | the child runs that explicit route: nothing is wrapped |
+| Projection contract after a Harness upgrade (check this row first) | — | query `Config.listConfigs` with `entry: include:subagent-pin` (the offline part of this row is asserted in `test/host-contract.test.mjs` against the pinned library; `status` is only observable on the running Host) | `status: "schema"` and `limitations: []`; `provider` carries `minLength: 1`, the nested `defaultModel` carries `required: [provider, model]`, `source` carries `default: "settings"`, `reasoningEffort` carries a seven-level `const` domain |
 
 The last row is what to look at after upgrading the Harness. `Config` uses this
 repository's own `@deepseek-ai/schemastery` (pinned exactly in `package.json`),
@@ -288,8 +319,16 @@ profile's `reasoning` field (`z.union(THINKING_LEVELS)` in `llm-pi-ai`) — a le
 the Host adds has to be added here, or the schema starts refusing an effort the
 Host already knows.
 
-`tools/read-session.mjs` reads a durable session log from evidence; it splits the
-log's concatenated zstd frames, which a single-shot decompress loses.
+`tools/read-session.mjs` reads a durable session log from evidence: it splits the
+log's concatenated zstd frames (a single-shot decompress loses everything after
+the first, and a half-written trailing frame costs only its own events), its
+second argument selects events whose `type` is **exactly** that string (not a
+substring — the old form let `request` also match `request/context` and
+`session/title-llm-request`), and it prints every selected event whole, one
+parseable JSON object per line (the old 1200-character cut turned a 24k–31k
+`request/header` into invalid JSON). To call `verify` from outside the package,
+use the `./verify` entry in `exports`; `read-session.mjs` stays an implementation
+detail that `verify` imports relatively.
 
 Wrapper removal on disable is covered by the unit tests and was observed live in
 this environment when an earlier generation of this plugin was disabled: DSH runs

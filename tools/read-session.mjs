@@ -3,9 +3,15 @@
  *
  * The log is a concatenation of independently compressed zstd frames, so a
  * single-shot decompress yields only the first frame; this splits on the zstd
- * frame magic and decompresses every frame.
+ * frame magic and decompresses every frame. A trailing frame that is still being
+ * written costs only its own events.
  *
- * Usage: node read-session.mjs <session.v4.jsonl.zstd> [typeFilter]
+ * Usage: node read-session.mjs <session.v4.jsonl.zstd> [type]
+ *
+ * The optional `type` selects events whose `type` is exactly that string, and
+ * every selected event is printed whole — one complete JSON object per line, so
+ * the output is parseable and can be piped. A log holds a `request/header` of
+ * 24k–31k characters, so printing is not trimmed: redirect it or pipe it.
  */
 import fs from 'node:fs'
 import zlib from 'node:zlib'
@@ -32,10 +38,10 @@ export function readSessionLog(file) {
 
 if (process.argv[1]?.endsWith('read-session.mjs')) {
   const file = process.argv[2]
-  const filter = process.argv[3]
-  if (!file) throw new Error('usage: node read-session.mjs <session.v4.jsonl.zstd> [typeFilter]')
+  const type = process.argv[3]
+  if (!file) throw new Error('usage: node read-session.mjs <session.v4.jsonl.zstd> [type]')
   for (const event of readSessionLog(file)) {
-    if (filter && !String(event.type).includes(filter)) continue
-    console.log(JSON.stringify(event).slice(0, 1200))
+    if (type && event.type !== type) continue
+    console.log(JSON.stringify(event))
   }
 }
