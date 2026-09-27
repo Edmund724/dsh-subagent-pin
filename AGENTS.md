@@ -87,6 +87,9 @@ npm run verify -- --lead <会话日志>   # 现场核对：断言那一次运行
   - 两份 README 的 `## ` 章节数量与顺序一致。
 - 动了 `files` / `exports` 就同时跑 `test/package.test.mjs`（5 项）：它反向要求每个
   `files` 条目仍匹配仓库里的东西、每个可导入子路径都被 `files` 覆盖。
+- 动了 `files` 也跑 `test/tarball.test.mjs`：它拿真实 packlist（`npm pack --dry-run
+  --json`）与 `files` 对拍，断言承诺的每个路径都在包里。那一面手写匹配器看不到，
+  而打包产物才是装进 profile 的东西；它是唯一要动用 npm 的一项，仍不联网。
 - 改了本文件或 `.agents/notes/` 下的文档就跑 `test/maintainer-docs.test.mjs`（3 项）：
   它把每条相对链接**从文档自己所在目录**解析（笔记索引指向各条记录用的就是这种），
   再断言引用都仍然存在。它看不到的边界写在那个文件头部。

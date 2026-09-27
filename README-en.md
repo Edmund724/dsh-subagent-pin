@@ -206,10 +206,10 @@ tests run against the real Host libraries (`@deepseek-ai/cordis`,
 installs once with `npm install`. The live table additionally needs a running
 Harness with this plugin enabled.
 
-Unit tests — 116 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 27 ·
+Unit tests — 117 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 27 ·
 `host-contract` 15 · `docs` 5 · `read-session` 5 · `verify-session` 9 ·
-`package` 5 · `patch` 5 · `maintainer-docs` 3), no Harness needed (verified on
-Node 25.8.0). From the repository root:
+`package` 5 · `patch` 5 · `maintainer-docs` 3 · `tarball` 1), no Harness needed
+(verified on Node 25.8.0). From the repository root:
 
 ```powershell
 npm install
@@ -248,7 +248,12 @@ maintainer-document guard — it reads `AGENTS.md` and every note under
 `.agents/notes/` as text and asserts that the relative links they carry (resolved
 from the directory their own document sits in, which is how the notes index
 reaches its entries) and the repository paths their prose writes by hand still
-exist. None of them goes through the plugin.)
+exist; `node --test test/tarball.test.mjs` is the one test that reaches for a
+command beside Node's own: it runs `npm pack --dry-run --json` in the repository
+root and asserts that every path `files` promises really is in the tarball npm
+would build — the side the hand-written matcher
+(`test-support/package-files.mjs`) cannot see, and the tarball is what lands in a
+profile. None of them goes through the plugin.)
 
 They cover the config interface (the native graph, the accepted and rejected
 domain, what an omitted field resolves to, and the gaps deliberately left to
@@ -279,7 +284,11 @@ config carrying nothing but `source: settings` (no `defaultModel`, no
 `reasoningEffort`). On the maintainer-document side they cover the relative links
 in `AGENTS.md` and every decision record — including the directory-relative links
 the notes index uses to reach its entries — the repository paths their prose
-writes by hand, and the decision records cited by bare file name.
+writes by hand, and the decision records cited by bare file name. On the packaging
+side there is exactly one: every path `files` promises is in the packlist npm
+would really build. Where the hand-written matcher and npm's own reading part ways
+— names npm never packs, ignore files in subdirectories that still bite — only a
+real `npm pack --dry-run --json` run can tell.
 
 Live checks — manual, one tool call each, against a Harness with the plugin
 enabled. **Producing the evidence cannot be automated** (the logs only exist

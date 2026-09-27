@@ -1,17 +1,18 @@
 /**
- * Reading one `files` entry of `package.json` the way npm reads it.
+ * The `files` array of `package.json`, read the way npm reads it.
  *
- * Two guards ask this same question — `test/docs.test.mjs` to prove that the
- * paths the documents name are shipped, and `test/package.test.mjs` to prove
- * that what is importable is shipped and that every entry still matches the tree
- * — and the two copies of this matcher were byte-identical. What they ask *of*
- * the answer differs, and stays beside each; the reading of an entry doesn't, so
- * the second copy cannot drift away from the first here.
- *
- * This is an approximation of npm's own packlist, kept because a test must not
- * need npm to run. `test/tarball.test.mjs` exists to hold the approximation to
- * the real thing.
+ * Three guards need this and they ask a different question of the answer:
+ * `test/docs.test.mjs` proves that the paths the documents name are shipped,
+ * `test/package.test.mjs` proves that what is importable is shipped and that
+ * every entry still matches the tree, and `test/tarball.test.mjs` proves that
+ * the manifest agrees with the tarball npm would actually build. The judgement
+ * stays beside each guard; the mechanics — matching an entry, and walking the
+ * tree npm packs — are the same, so they live here rather than in three copies
+ * where the second and third can drift away from the first.
  */
+
+import { readdirSync } from 'node:fs'
+import { join, relative, sep } from 'node:path'
 
 /**
  * Whether one `files` entry names a repository path.
@@ -37,4 +38,28 @@ export function ships(entry, file) {
     }
   }
   return new RegExp(`^${pattern}$`).test(file)
+}
+
+/**
+ * Every path under the repository root that npm's packlist considers at all.
+ *
+ * `node_modules` and `.git` are left out because npm never packs either one, so
+ * an entry naming them would be a claim about nothing. Sorted, so that a guard
+ * comparing two of these lists reports a difference rather than an order.
+ *
+ * @param root - absolute path of the repository root.
+ * @returns repository-relative paths with `/` separators, sorted.
+ */
+export function repositoryPaths(root) {
+  const found = []
+  const walk = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name === '.git') continue
+      const path = join(directory, entry.name)
+      if (entry.isDirectory()) walk(path)
+      else found.push(path)
+    }
+  }
+  walk(root)
+  return found.map((path) => relative(root, path).replaceAll(sep, '/')).sort()
 }
