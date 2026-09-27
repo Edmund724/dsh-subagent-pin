@@ -4,6 +4,12 @@
 
 > DeepSeek Harness 的 Host 插件：让 Settings「子代理模型」里勾选的模型，成为每一次**没有自己指定路由**的全新子代理委派的默认路由；指定了 `provider` 或 `model` 的委派原样放行。以 bundle 装进 profile（本环境：`desktop` profile，行 id `subagent-pin`），禁用即恢复原样。
 
+## 安装
+
+用插件管理器装本包：`plugin_manager` 的 `install_bundle`，`target` 填本包目录的绝对路径。安装器负责装包并把 bundle 接进当前 profile —— 装好后本包会出现在 profile `package.json` 的 `dsh.profile.bundles` 里；随包的 `cordis.patch.yml` 随之插入 `subagent-pin` 一行，默认 `source: settings`，不需要另写配置。装完用一个不带模型字段的 `subagent` 探针确认子代理跑的是清单默认项（还继承父路由就说明那一行没挂上，重启 Harness 再试），核对表见[测试与现场核对](docs/verification.md)。
+
+**从本地目录装的话，先在包目录里跑一次 `npm install`。** 安装器给本地目录建的是链接，不会连带装上本包自己的依赖（`@deepseek-ai/schemastery`），而 Node 按链接的真实路径解析 import —— 依赖只有落在包目录里才找得到，往 profile 的 node_modules 里补没有用。缺依赖的症状是那一行根本没挂上：委派照旧继承父路由，安装结果里报 `failed`。这不是重启能修的，补完依赖再重启就行，profile 那侧不用重装。
+
 ## 为什么需要它
 
 Settings 的「子代理模型」行是一份权限清单加发现工具：它约束显式指定的路由，却不把任何委派引向清单内的模型。子代理的选项总是先铺父代理的路由，权限校验又只在显式选择了模型时介入（源码原话：*Pure inheritance remains outside this policy because no model-facing choice occurred*），所以不带模型字段的委派跑的就是主代理的模型；teammate、workflow `agent()` 与嵌套委派甚至没有模型入参，只能继承。于是设置看似生效，子代理实际仍在跑主代理的模型。
