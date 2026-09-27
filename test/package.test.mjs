@@ -1,5 +1,5 @@
 /**
- * The package's two claims about its own contents, held to each other.
+ * The package's claims about its own contents, held to each other.
  *
  * `exports` decides what an importer outside this package may reach, and `files`
  * decides what a packed copy actually contains. The review that produced
@@ -10,18 +10,20 @@
  * this directory, so no import ever goes through the export map.
  *
  * The test keeps them aligned in the one direction that matters: anything
- * importable has to be shipped.
+ * importable has to be shipped. The manifest's display metadata is the third
+ * claim: an `icon` DSH cannot read, or cannot find in a packed copy, degrades the
+ * Plugin Manager card silently.
  */
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { dirname, extname, isAbsolute, join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 /** The repository root, where `package.json` sits. */
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
-const { exports: subpaths, files } = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
+const { exports: subpaths, files, icon } = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
 
 /** Whether one `files` entry names a repository path (its `*` matching one segment). */
 function ships(entry, file) {
@@ -55,4 +57,27 @@ test('the shipped tools are the ones the export map and the scripts name', () =>
     assert.ok(files.some((entry) => ships(entry, tool)), `${tool} is not among the shipped files`)
     assert.ok(existsSync(join(ROOT, tool)), `${tool} is shipped but missing from the repository`)
   }
+})
+
+// ── the display metadata the Plugin Manager reads without activating ────────
+
+/** The extensions and the raw size ceiling DSH admits a manifest icon under. */
+const ICON_MEDIA_TYPES = ['.svg', '.png', '.jpg', '.jpeg', '.webp']
+const MAX_ICON_BYTES = 256 * 1024
+
+test('the manifest icon is one DSH will render, and it ships', () => {
+  // DSH reads the icon through `${specifier}/package.json` and inlines the file
+  // as a data URI (`app-boot.js` `iconOf`), so a path DSH would reject, a file
+  // outside the manifest directory, or a missing `files` entry all degrade the
+  // Plugin Manager card to default artwork without a single failing check.
+  assert.equal(typeof icon, 'string', 'package.json declares no top-level `icon`, so the card falls back to default artwork')
+  assert.ok(!isAbsolute(icon) && !icon.split(/[\\/]/).includes('..'), `icon "${icon}" must be a relative path inside the manifest directory`)
+  assert.ok(ICON_MEDIA_TYPES.includes(extname(icon).toLowerCase()), `icon "${icon}" must be one of ${ICON_MEDIA_TYPES.join(', ')}`)
+
+  // `files` entries are repository-relative, the manifest may write `./icon.svg`.
+  const shipped = icon.replace(/^\.\//u, '')
+  const file = join(ROOT, icon)
+  assert.ok(existsSync(file), `package.json declares icon "${icon}", which is not a file in this repository`)
+  assert.ok(statSync(file).size <= MAX_ICON_BYTES, `icon "${icon}" exceeds the ${MAX_ICON_BYTES} byte ceiling DSH reads icons under`)
+  assert.ok(files.some((entry) => ships(entry, shipped)), `icon "${icon}" is declared but not shipped by \`files\` (it ships ${files.join(', ')})`)
 })

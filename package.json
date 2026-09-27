@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Gives every fresh subagent delegation that names no route the configured LLM route.",
+  "icon": "./icon.svg",
   "exports": {
     ".": "./plugin.js",
     "./verify": "./tools/verify-session.mjs",
@@ -27,6 +28,7 @@
     "README-en.md",
     "CONTEXT.md",
     "locale/*.json",
+    "icon.svg",
     "tools/*.mjs"
   ],
   "dsh": {
