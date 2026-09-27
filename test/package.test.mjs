@@ -25,9 +25,26 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 const { exports: subpaths, files, icon } = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
 
-/** Whether one `files` entry names a repository path (its `*` matching one segment). */
+/**
+ * Whether one `files` entry names a repository path.
+ *
+ * `*` stays inside one path segment while `**` crosses directories, which is how
+ * npm itself reads a `files` entry.
+ */
 function ships(entry, file) {
-  return new RegExp(`^${entry.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*')}$`).test(file)
+  let pattern = ''
+  for (let index = 0; index < entry.length; index += 1) {
+    const char = entry[index]
+    if (char === '*' && entry[index + 1] === '*') {
+      pattern += '.*'
+      index += 1
+    } else if (char === '*') {
+      pattern += '[^/]*'
+    } else {
+      pattern += /[.+?^${}()|[\]\\]/u.test(char) ? `\\${char}` : char
+    }
+  }
+  return new RegExp(`^${pattern}$`).test(file)
 }
 
 test('every subpath export resolves to a file in this repository', () => {

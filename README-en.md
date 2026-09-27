@@ -206,9 +206,9 @@ tests run against the real Host libraries (`@deepseek-ai/cordis`,
 installs once with `npm install`. The live table additionally needs a running
 Harness with this plugin enabled.
 
-Unit tests — 105 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 27 ·
-`host-contract` 15 · `docs` 4 · `read-session` 5 · `verify-session` 9 ·
-`package` 3), no Harness needed (verified on Node 25.8.0). From
+Unit tests — 107 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 27 ·
+`host-contract` 15 · `docs` 5 · `read-session` 5 · `verify-session` 9 ·
+`package` 4), no Harness needed (verified on Node 25.8.0). From
 the repository root:
 
 ```powershell
@@ -218,7 +218,9 @@ npm test
 
 (`npm test` is `node --test "test/*.test.mjs"`: the target is an explicit glob
 rather than Node's default test glob, and test files are always named
-`test/*.test.mjs` — doubles and helpers live in `test-support/`.)
+`test/*.test.mjs` — doubles and helpers live in `test-support/`. The tests,
+`test-support/` and the `.agents/notes` decision records are all in `files`, so
+`npm install && npm test` in a packed copy prints the same number.)
 
 (`node --test test/config-schema.test.mjs` runs the config interface alone — it
 calls `config-schema.js` directly and needs no double; `node --test
@@ -230,8 +232,9 @@ the Host contract alone — it asserts the proxy, the effect, Schemastery and th
 projection against the pinned libraries, without the plugin; `node --test
 test/docs.test.mjs` runs the document guard alone — it reads the two READMEs and
 `CONTEXT.md` as text and asserts that their config keys are declared by the
-schema, their decision words are in the glossary, their relative links exist and
-ship, and the two READMEs carry the same section count; `node --test
+schema, their decision words are in the glossary, their relative links and the
+repository paths their prose writes by hand exist and ship, and the two READMEs
+carry the same section count; `node --test
 test/read-session.test.mjs` builds its own logs to exercise the evidence reader
 (concatenated zstd frames, an incomplete trailing frame, the CLI's exact filter
 and untrimmed printing); `node --test test/verify-session.test.mjs` builds one
@@ -258,7 +261,8 @@ activation, an unreadable provider record warns by name). On the evidence side
 they cover reading concatenated zstd frames, the CLI's exact filter and untrimmed
 printing, `verify`'s route assertions over one run (including a missing child
 log, a descriptor disagreeing with its own header, and an expectation outside the
-frozen list), and `exports` agreeing with `files`.
+frozen list), and `exports` agreeing with `files` plus the manifest `icon`
+existing and shipping.
 
 Live checks — manual, one tool call each, against a Harness with the plugin
 enabled. **Producing the evidence cannot be automated** (the logs only exist

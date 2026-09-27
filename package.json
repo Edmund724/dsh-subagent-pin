@@ -27,8 +27,11 @@
     "README.md",
     "README-en.md",
     "CONTEXT.md",
+    ".agents/notes/**",
     "locale/*.json",
     "icon.svg",
+    "test/**",
+    "test-support/**",
     "tools/*.mjs"
   ],
   "dsh": {

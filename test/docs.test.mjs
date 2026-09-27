@@ -4,10 +4,11 @@
  * Part of this plugin's interface is written down only for humans: the `config`
  * row an author copies out of a README, the decision words a reader has to learn
  * before the policy table makes sense, the links between the three Markdown
- * files, and the shape of the two-language pair. None of that reaches a
- * compiler, so a key added to `config-schema.js`, a decision word added to
- * `route-policy.js`, or a document that has dropped out of `files` would all ship
- * without a single failing check.
+ * files, the repository paths the prose names by hand, and the shape of the
+ * two-language pair. None of that reaches a compiler, so a key added to
+ * `config-schema.js`, a decision word added to `route-policy.js`, a path the
+ * package stops shipping, or a document that has dropped out of `files` would all
+ * ship without a single failing check.
  *
  * Every assertion here is one-way: each document is read, and what it says is
  * required to be *a subset of* what the machine accepts. Nothing here asserts
@@ -19,7 +20,7 @@
  * only ever prove that the marker was kept up to date.
  */
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -28,6 +29,9 @@ import { Config, KNOWN_KEYS } from '../config-schema.js'
 
 /** The repository root: every document read here sits beside `package.json`. */
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+
+/** What the repository root actually holds — the only names a path may start with. */
+const ROOT_ENTRIES = new Set(readdirSync(ROOT))
 
 /** The two language READMEs — the same document, written twice. */
 const READMES = ['README.md', 'README-en.md']
@@ -183,9 +187,26 @@ function links(name) {
   return found
 }
 
-/** Whether one `files` entry of `package.json` ships a repository-relative path. */
+/**
+ * Whether one `files` entry of `package.json` ships a repository-relative path.
+ *
+ * `*` stays inside one path segment while `**` crosses directories, which is how
+ * npm itself reads a `files` entry.
+ */
 function ships(entry, file) {
-  return new RegExp(`^${entry.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*')}$`).test(file)
+  let pattern = ''
+  for (let index = 0; index < entry.length; index += 1) {
+    const char = entry[index]
+    if (char === '*' && entry[index + 1] === '*') {
+      pattern += '.*'
+      index += 1
+    } else if (char === '*') {
+      pattern += '[^/]*'
+    } else {
+      pattern += /[.+?^${}()|[\]\\]/u.test(char) ? `\\${char}` : char
+    }
+  }
+  return new RegExp(`^${pattern}$`).test(file)
 }
 
 test('every relative link a document carries resolves, and the package ships it', () => {
@@ -203,6 +224,56 @@ test('every relative link a document carries resolves, and the package ships it'
     }
   }
   assert.notEqual(linked, 0, 'no relative link was found in any document, so this test proves nothing')
+})
+
+// ── A3b: the repository paths the prose writes in a code span ──────────────
+
+/** npm always packs these, whether or not the `files` array names them. */
+const ALWAYS_PACKED = new Set(['package.json'])
+
+/** Whether one `files` entry covers a directory a document names, trailing slash and all. */
+function shipsDirectory(entry, directory) {
+  const prefix = `${directory.replace(/\/+$/u, '')}/`
+  return entry === prefix.slice(0, -1) || entry.startsWith(prefix)
+}
+
+/**
+ * Every backticked token of one document that reads as a repository path.
+ *
+ * A path is recognized only when its first segment — or the whole token, for a
+ * root file — is an entry the repository root actually holds. That keeps event
+ * names (`subagent/descriptor`), identifiers (`apply()`), globs, citations
+ * (`plugin.js:108`), absolute paths and anything carrying a URL scheme out of
+ * the check: they are the prose's own vocabulary, not a claim about this tree.
+ * A path is required to *exist*; that the package ships it is asserted below.
+ */
+function documentedPaths(name) {
+  const paths = []
+  for (const row of numbered(name)) {
+    for (const [, token] of row.text.matchAll(/`([^`\n]+)`/g)) {
+      if (/[\s*:`<>]/u.test(token)) continue
+      if (!ROOT_ENTRIES.has(token.split('/')[0])) continue
+      paths.push({ token, number: row.number })
+    }
+  }
+  return paths
+}
+
+test('every repository path a document writes in a code span resolves, and ships', () => {
+  const { files } = JSON.parse(read('package.json'))
+  const written = DOCUMENTS.flatMap((name) => documentedPaths(name).map((path) => ({ name, ...path })))
+  assert.notEqual(written.length, 0, 'no document writes a repository path in a code span, so this test proves nothing')
+
+  for (const { name, token, number } of written) {
+    const path = join(ROOT, token)
+    assert.ok(existsSync(path), `${name}:${number} writes \`${token}\`, which is not a path in this repository`)
+    if (ALWAYS_PACKED.has(token)) continue
+    // A directory is shipped by whatever entry covers its contents.
+    const shipped = statSync(path).isDirectory()
+      ? files.some((entry) => shipsDirectory(entry, token))
+      : files.some((entry) => ships(entry, token))
+    assert.ok(shipped, `${name}:${number} writes \`${token}\`, which the "files" array of package.json does not ship`)
+  }
 })
 
 // ── A4: the shape the two languages share ─────────────────────────────────
