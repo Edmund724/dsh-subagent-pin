@@ -45,7 +45,6 @@ const PINNED_CONFIG = {
   provider: 'opencodego',
   model: 'space-bunny-free',
   reasoningEffort: 'high',
-  allowedModels: [{ provider: 'opencodego', model: 'space-bunny-free' }],
 }
 
 function fakeSubagents(providers = [SPAWN, OUT_OF_PROCESS]) {
@@ -219,7 +218,7 @@ test('settings mode reports a rejected Settings list instead of pinning nothing'
 
 // ── activation reporting ───────────────────────────────────────────────────
 
-test('activation reports the pinned route and its allowlist', () => {
+test('activation reports the pinned route', () => {
   const { ctx } = mounted()
 
   assert.equal(ctx.logs.some((entry) => entry.level === 'info' && entry.message.includes('pinned to opencodego/space-bunny-free') && entry.message.includes('effort high')), true)
@@ -394,6 +393,10 @@ test('the key set is closed here, because the schema merges unknown keys', () =>
     () => apply(fakeCtx(fakeSubagents()), validated({ source: 'settings', defaultModel: { ...CHECKED, extra: 1 } })),
     /config.defaultModel has unknown key "extra"/,
   )
+  assert.throws(
+    () => apply(fakeCtx(fakeSubagents()), validated({ source: 'settings', allowedModels: [{ ...CHECKED }] })),
+    /unknown config key "allowedModels"/,
+  )
 })
 
 test('pinned mode requires the route it cannot get from Settings', () => {
@@ -407,21 +410,10 @@ test('pinned mode requires the route it cannot get from Settings', () => {
   )
 })
 
-test('pinned mode must allow the route it pins to', () => {
-  assert.throws(
-    () => apply(fakeCtx(fakeSubagents()), validated({ ...PINNED_CONFIG, allowedModels: [{ provider: 'other', model: 'other' }] })),
-    /allowedModels must include the pinned route/,
-  )
-})
-
 test('settings mode rejects a static route instead of hiding it', () => {
   assert.throws(
     () => apply(fakeCtx(fakeSubagents()), validated({ source: 'settings', provider: 'opencodego', model: 'space-bunny-free' })),
     /config.provider is fixed by the Settings row/,
-  )
-  assert.throws(
-    () => apply(fakeCtx(fakeSubagents()), validated({ source: 'settings', allowedModels: [{ ...CHECKED }] })),
-    /config.allowedModels is fixed by the Settings row/,
   )
   assert.throws(
     () => apply(fakeCtx(fakeSubagents()), validated({ ...PINNED_CONFIG, defaultModel: { ...CHECKED } })),

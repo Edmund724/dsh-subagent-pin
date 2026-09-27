@@ -1,10 +1,10 @@
-# Host plugin: route fresh subagent delegations to the models authorized in Settings.
+# Host plugin: give every fresh subagent delegation that names no route the
+# default route of the models checked in Settings.
 #
-# `source: settings` reads the `subagent-model-selection-settings` row and
-# authorizes every model it checks. A delegation that names no route gets the
-# first authorized model (or `config.defaultModel`); one that names another
-# authorized route is left exactly as requested; one that names anything else
-# fails instead of running on it.
+# `source: settings` reads the `subagent-model-selection-settings` row. A
+# delegation that names no route gets the first listed model (or
+# `config.defaultModel`); a delegation that names `provider` or `model` itself is
+# passed through untouched — the list decides a default, not a licence.
 - insert:
     - id: subagent-pin
       name: '@local/dsh-subagent-pin'

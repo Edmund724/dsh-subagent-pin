@@ -57,7 +57,7 @@ test('the config schema is the native Schemastery graph DSH projects', () => {
 })
 
 test('every declared key carries the prose that explains it', () => {
-  assert.deepEqual(KNOWN_KEYS, ['source', 'provider', 'model', 'reasoningEffort', 'allowedModels', 'defaultModel'])
+  assert.deepEqual(KNOWN_KEYS, ['source', 'provider', 'model', 'reasoningEffort', 'defaultModel'])
   for (const key of KNOWN_KEYS) {
     assert.equal(typeof Config.dict[key].meta.description, 'string', `${key} has no description`)
     assert.notEqual(Config.dict[key].meta.description.length, 0, `${key} has an empty description`)
@@ -67,17 +67,11 @@ test('every declared key carries the prose that explains it', () => {
 // ── what an omitted field resolves to ──────────────────────────────────────
 
 test('an omitted config resolves to the default source and nothing else', () => {
-  // Schemastery gives objects a `{}` default and arrays a `[]` default. Both
-  // must be cleared: the policy reads "the author wrote nothing" as a distinct
-  // state, and pinned mode fills allowedModels from its own route.
+  // Schemastery gives objects a `{}` default. It must be cleared: the policy
+  // reads "the author wrote nothing" as a distinct state.
   for (const input of [undefined, null, {}]) {
     assert.deepEqual(accepted(input), { source: 'settings' })
   }
-})
-
-test('an explicit empty route list is not the same as an omitted one', () => {
-  assert.deepEqual(Object.keys(accepted({ source: 'pinned', provider: 'p', model: 'm' })), ['source', 'provider', 'model'])
-  assert.deepEqual(accepted({ source: 'pinned', provider: 'p', model: 'm', allowedModels: [] }).allowedModels, [])
 })
 
 // ── the accepted domain ────────────────────────────────────────────────────
@@ -95,9 +89,6 @@ test('the shape accepts both sources and each optional field', () => {
     model: 'm',
     reasoningEffort: 'low',
   })
-  assert.deepEqual(accepted({ source: 'pinned', provider: 'p', model: 'm', allowedModels: [{ provider: 'q', model: 'n' }] }).allowedModels, [
-    { provider: 'q', model: 'n' },
-  ])
 })
 
 test('a source outside the two modes is rejected at its own path', () => {
@@ -113,11 +104,6 @@ test('a route field is a non-empty string, never a number or an empty value', ()
 test('defaultModel is a route object, not a "provider/model" string', () => {
   rejected({ source: 'settings', defaultModel: 'opencodego/space-bunny-free' }, /\$\.defaultModel expected object/)
   rejected({ source: 'settings', defaultModel: { provider: 'opencodego' } }, /\$\.defaultModel\.model missing required value/)
-})
-
-test('allowedModels is an array of complete routes', () => {
-  rejected({ source: 'settings', allowedModels: 'opencodego' }, /\$\.allowedModels expected array/)
-  rejected({ source: 'pinned', provider: 'p', model: 'm', allowedModels: [{ provider: 'q' }] }, /\$\.allowedModels\[0\]\.model missing required value/)
 })
 
 // ── what the schema deliberately leaves to plugin.js ───────────────────────
@@ -136,9 +122,4 @@ test('the shape cannot express which keys may appear together, so the plugin doe
     provider: 'q',
     model: 'n',
   })
-})
-
-test('the shape cannot require a non-empty list, so the plugin does', () => {
-  // `z.array(...).min(1)` is skipped while its items carry a default.
-  assert.deepEqual(accepted({ source: 'pinned', provider: 'p', model: 'm', allowedModels: [] }).allowedModels, [])
 })

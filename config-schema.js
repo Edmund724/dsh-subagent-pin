@@ -15,12 +15,9 @@
  * - `z.object` merges unknown keys instead of rejecting them, and `z.union`
  *   takes the first branch that resolves. So *which* keys may appear
  *   *together* is not expressible here; `plugin.js` owns that closure.
- * - `z.object` and `z.array` carry a `{}` / `[]` default of their own, and
- *   `z.array(...).min(1)` is skipped when its items carry a default.
- *   `.default(undefined)` clears such a default, so "the author wrote nothing"
- *   stays distinguishable from "the author wrote an empty value" — which the
- *   exclusivity rules depend on, and which `pinned` mode depends on to fill
- *   `allowedModels` from its own route.
+ * - `z.object` carries a `{}` default of its own. `.default(undefined)` clears
+ *   it, so "the author wrote nothing" stays distinguishable from "the author
+ *   wrote an empty value" — which the exclusivity rules depend on.
  *
  * Every field here belongs to the row itself. In `settings` mode only `source`,
  * `reasoningEffort` and `defaultModel` may be set: the routes come from the
@@ -46,16 +43,14 @@ const route = z.object({
  * them. `plugin.js` enforces both rules; this graph declares every field they
  * range over.
  */
-// `.default(undefined)` below clears Schemastery's own `[]` / `{}` default: the
-// policy reads "unset" as a state of its own, and pinned mode fills
-// `allowedModels` from the route it pins.
+// `.default(undefined)` below clears Schemastery's own `{}` default: the policy
+// reads "unset" as a state of its own.
 export const Config = z.object({
-  source: z.union([z.const('settings'), z.const('pinned')]).default('settings').description('Where the authorized route set comes from: the Settings row, or this row.'),
+  source: z.union([z.const('settings'), z.const('pinned')]).default('settings').description('Where the default route for an unspecified delegation comes from: the Settings row, or this row.'),
   provider: z.string().min(1).description('Required with source "pinned"; forbidden with source "settings".'),
   model: z.string().min(1).description('Required with source "pinned"; forbidden with source "settings".'),
   reasoningEffort: z.string().description('Reasoning effort handed to every pinned delegation, e.g. "high".'),
-  allowedModels: z.array(route).default(undefined).description('Routes an explicitly model-selecting caller may name. Defaults to the pinned route; must contain it; forbidden with source "settings".'),
-  defaultModel: route.default(undefined).description('Route an unspecified delegation uses in "settings" mode. Must be one the Settings row authorizes; forbidden with source "pinned".'),
+  defaultModel: route.default(undefined).description('Route an unspecified delegation uses in "settings" mode. Must be one the Settings row lists; forbidden with source "pinned".'),
 })
 
 /** The config keys this row understands, from the one place that declares them. */

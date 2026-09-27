@@ -20,7 +20,6 @@ const PINNED = {
   provider: 'opencodego',
   model: 'space-bunny-free',
   reasoningEffort: 'high',
-  allowedModels: [{ provider: 'opencodego', model: 'space-bunny-free' }],
 }
 
 /** The default source: follows the Settings row's model checkboxes. */
@@ -43,14 +42,17 @@ const SOURCES = [
     config: PINNED,
     read: undefined,
     route: { provider: 'opencodego', model: 'space-bunny-free', reasoningEffort: 'high' },
-    allowedModels: [{ provider: 'opencodego', model: 'space-bunny-free' }],
   },
   {
     name: 'settings',
     config: SETTINGS,
     read: readOk([{ ...CHECKED }]),
-    route: { provider: 'opencodego', model: 'space-bunny-free', reasoningEffort: undefined },
-    allowedModels: [{ provider: 'opencodego', model: 'space-bunny-free' }],
+    route: {
+      provider: 'opencodego',
+      model: 'space-bunny-free',
+      reasoningEffort: undefined,
+      allowedModels: [{ provider: 'opencodego', model: 'space-bunny-free' }],
+    },
   },
 ]
 
@@ -74,7 +76,7 @@ for (const source of SOURCES) {
     const resolved = authorize(source)
 
     assert.equal(resolved.ok, true)
-    assert.deepEqual(resolved.route, { ...source.route, allowedModels: source.allowedModels })
+    assert.deepEqual(resolved.route, source.route)
   })
 }
 
@@ -167,6 +169,8 @@ test('a configured effort applies only when the caller names none', () => {
   const configured = decided(authorize(SOURCES[0]), { request: { parent: {}, agentOptions: { maxTokens: 32 } } })
   const requested = decided(authorize(SOURCES[0]), { request: { parent: {}, agentOptions: { reasoningEffort: 'max' } } })
 
+  assert.equal(configured.kind, 'pin')
+  assert.equal(requested.kind, 'pin')
   assert.equal(configured.request.agentOptions.reasoningEffort, 'high')
   assert.equal(configured.request.agentOptions.maxTokens, 32)
   assert.equal(requested.request.agentOptions.reasoningEffort, 'max')
@@ -199,36 +203,62 @@ test('an unresolved authorization rejects with its reason', () => {
 // ── decideDelegation: an explicitly named route ─────────────────────────────
 
 for (const source of SOURCES) {
-  test(`${source.name} source leaves an authorized explicit route exactly as requested`, () => {
+  test(`${source.name} source passes an explicitly named route through untouched`, () => {
     const options = { provider: source.route.provider, model: source.route.model }
     const decision = decided(authorize(source), { request: { parent: {}, agentOptions: options } })
 
     assert.equal(decision.kind, 'pass')
-    assert.equal(decision.reason, 'authorized')
+    assert.equal(decision.reason, 'named')
     assert.equal(decision.request.agentOptions, options)
   })
 
-  test(`${source.name} source rejects an explicit route outside the authorization`, () => {
-    const decision = decided(authorize(source), { request: { parent: {}, agentOptions: { ...OTHER } } })
+  test(`${source.name} source passes a named route outside the list untouched`, () => {
+    const options = { ...OTHER }
+    const decision = decided(authorize(source), { request: { parent: {}, agentOptions: options } })
 
-    assert.equal(decision.kind, 'reject')
-    assert.match(decision.message, /child LLM route "opencodego\/deepseek-v4\.1-flash" is not allowed for delegation/)
-    assert.match(decision.message, /allowed: opencodego\/space-bunny-free/)
+    assert.equal(decision.kind, 'pass')
+    assert.equal(decision.reason, 'named')
+    assert.equal(decision.request.agentOptions, options)
   })
 }
 
-test('a model named without its provider is rejected instead of half-applied', () => {
-  const decision = decided(authorize(SOURCES[0]), { request: { parent: {}, agentOptions: { model: 'space-bunny-free' } } })
+test('a model named without its provider is passed through untouched', () => {
+  const options = { model: 'space-bunny-free' }
+  const decision = decided(authorize(SOURCES[0]), { request: { parent: {}, agentOptions: options } })
 
-  assert.equal(decision.kind, 'reject')
-  assert.match(decision.message, /child LLM route "\?\/space-bunny-free" is not allowed/)
+  assert.equal(decision.kind, 'pass')
+  assert.equal(decision.reason, 'named')
+  assert.equal(decision.request.agentOptions, options)
 })
 
-test('a provider named without its model is rejected instead of half-applied', () => {
-  const decision = decided(authorize(SOURCES[0]), { request: { parent: {}, agentOptions: { provider: 'opencodego' } } })
+test('a provider named without its model is passed through untouched', () => {
+  const options = { provider: 'opencodego' }
+  const decision = decided(authorize(SOURCES[0]), { request: { parent: {}, agentOptions: options } })
 
-  assert.equal(decision.kind, 'reject')
-  assert.match(decision.message, /child LLM route "opencodego\/\?" is not allowed/)
+  assert.equal(decision.kind, 'pass')
+  assert.equal(decision.reason, 'named')
+  assert.equal(decision.request.agentOptions, options)
+})
+
+test('a named route is passed through even when no route list can be read', () => {
+  for (const authorization of [
+    { ok: false, reason: 'the Settings row is disabled, so no subagent route is authorized' },
+    { ok: false, reason: 'model-selection-settings is not composed in this Host' },
+  ]) {
+    const decision = decided(authorization, { request: { parent: {}, agentOptions: { ...OTHER } } })
+
+    assert.equal(decision.kind, 'pass')
+    assert.equal(decision.reason, 'named')
+  }
+})
+
+test('a non-string route field still counts as a named route', () => {
+  const options = { provider: 7, model: null }
+  const decision = decided(authorize(SOURCES[0]), { request: { parent: {}, agentOptions: options } })
+
+  assert.equal(decision.kind, 'pass')
+  assert.equal(decision.reason, 'named')
+  assert.equal(decision.request.agentOptions, options)
 })
 
 // ── decideDelegation: the two exemptions ────────────────────────────────────
@@ -261,11 +291,13 @@ test('a provider that cannot honor child agentOptions is left to route its own c
   ])
 })
 
-test('an exempt provider still has its explicit route checked against the authorization', () => {
-  const decision = decided(authorize(SOURCES[0]), { provider: 'fork', ...FORK, request: { parent: {}, agentOptions: { ...OTHER } } })
+test('an exempt provider still passes a named route through before the exemption is considered', () => {
+  const options = { ...OTHER }
+  const decision = decided(authorize(SOURCES[0]), { provider: 'fork', ...FORK, request: { parent: {}, agentOptions: options } })
 
-  assert.equal(decision.kind, 'reject')
-  assert.match(decision.message, /not allowed for delegation/)
+  assert.equal(decision.kind, 'pass')
+  assert.equal(decision.reason, 'named')
+  assert.equal(decision.request.agentOptions, options)
 })
 
 test('a delegation whose provider is unknown is pinned rather than exempted', () => {

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Pins every fresh subagent delegation to one configured LLM route.",
+  "description": "Gives every fresh subagent delegation that names no route the configured LLM route.",
   "exports": {
     ".": "./plugin.js",
     "./package.json": "./package.json",
@@ -21,7 +21,7 @@
   ],
   "meta": {
     "title": "Subagent Pin",
-    "description": "Pins every fresh subagent delegation to one configured LLM route."
+    "description": "Gives every fresh subagent delegation that names no route the configured LLM route."
   },
   "dsh": {
     "bundle": {

@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Subagent Pin",
-    "description": "Pins every fresh subagent delegation to one configured LLM route."
+    "description": "Gives every fresh subagent delegation that names no route the configured LLM route."
   }
 }

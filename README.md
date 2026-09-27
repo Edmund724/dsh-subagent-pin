@@ -2,7 +2,7 @@
 
 [English](README-en.md) | **简体中文**
 
-Host 插件：给每一次**全新**（fresh）子代理委派一个被授权的 LLM 路由，不需要模型在提示词上配合。授权集合就是 Settings 里勾选的模型（`subagent-model-selection-settings`），每次委派都重新读取：委派方没有指定路由时（teammate、workflow `agent()`、嵌套委派都是这个情况）补上默认项 —— `config.defaultModel`，没配就是列表第一个；它显式指定的路由只要在授权集合内就原样放行，从而保留「Agent 在授权模型里自己挑」的原意。它以 bundle 形式安装到某个 profile（本环境为 `desktop` profile，bundle `@local/dsh-subagent-pin`，行 id `subagent-pin`）。
+Host 插件：给每一次**全新**（fresh）子代理委派补上一条路由 —— 但只补**没有自己指定路由**的那些。路由清单就是 Settings 里勾选的模型（`subagent-model-selection-settings`），每次委派都重新读取：委派方没有指定路由时（teammate、workflow `agent()`、嵌套委派都是这个情况）补上默认项 —— `config.defaultModel`，没配就是列表第一个。调用方**自己指定了** `provider` 或 `model` 时请求原样放行，插件不查清单、不改写、不报错：路由由调用方负责。它以 bundle 形式安装到某个 profile（本环境为 `desktop` profile，bundle `@local/dsh-subagent-pin`，行 id `subagent-pin`）。
 
 ## 不用这个插件会怎样
 
@@ -13,7 +13,7 @@ DSH 里「子代理模型」那一行 Settings 是**权限清单 + 发现工具*
 - `list_subagent_models` 只是把允许的路由**告诉模型**，用不用完全靠模型自己在每一次调用里写 `provider`/`model`。少写一次，就静默退回主 agent 的模型，没有任何提示。
 - 而 `agentTeams.spawnTeammate`、workflow 的 `agent()`、嵌套委派这些路径**根本没有模型入参**，永远走继承。
 
-结果就是：设置看起来生效了（子代理照常跑起来），实际用的却是主 agent 的模型。本插件补上这一步 —— 在 provider 解析子代理 options 之前注入路由，让 Settings 里勾的那个模型对每一次全新委派真正生效。
+结果就是：设置看起来生效了（子代理照常跑起来），实际用的却是主 agent 的模型。本插件补上这一步 —— 在 provider 解析子代理 options 之前注入路由，让 Settings 里勾的那个模型对每一次**未指定路由的**全新委派真正生效。
 
 ## 为什么必须是 Host 插件
 
@@ -34,29 +34,30 @@ DSH 里「子代理模型」那一行 Settings 是**权限清单 + 发现工具*
 
 ## 模型来源
 
-Settings 的那一行是**权限**清单：它的存在只是为了让面向模型的 `subagent` 调用可以指名其中一条路由，而 DSH 本身从不从中挑一个 —— 纯继承不受它约束。所以本插件接住「没有指名」的那些委派（teammate、workflow `agent()`、嵌套），把路由补成授权集合里的**默认项**：
+Settings 的那一行是**清单**：它的存在只是为了让面向模型的 `subagent` 调用可以指名其中一条路由，而 DSH 本身从不从中挑一个 —— 纯继承不受它约束。所以本插件接住「没有指名」的那些委派（teammate、workflow `agent()`、嵌套），把路由补成清单里的**默认项**：
 
-- 默认项默认是 Settings 列表的**第一个**；想固定成别的授权模型，就在插件配置里写 `defaultModel`（必须属于当前授权集合，否则该次委派报错）。
+- 默认项默认是 Settings 列表的**第一个**；想固定成别的已勾选模型，就在插件配置里写 `defaultModel`（必须属于当前清单，否则该次**未指定路由的**委派报错）。
 - 列表顺序是存储顺序（UI 里先存的在前、新勾的追加到末尾），`defaultModel` 让默认项不再取决于它。
 
 这个读取每次委派都发生，所以重新勾选模型对下一个子代理立即生效、无需重启 —— 比随包的 `subagent` 工具更新鲜（后者在会话拿到委派工具时采样一次）。
 
-当该行允许 0 个模型、被禁用、或未被组装时，**每一次**全新委派都会失败，并在消息里给出修复方法。这是刻意的：未授权的子代理绝不能悄悄退回委派方的路由。`source: pinned` 是没有该行的 Host 的逃生通道。
+当该行允许 0 个模型、被禁用、或未被组装时，每一次**未指定路由的**全新委派都会失败，并在消息里给出修复方法。这是刻意的：一个没指定路由的子代理绝不能悄悄退回委派方的路由。**自己指定了路由的委派不受影响** —— 清单只决定默认项，不是许可证。`source: pinned` 是没有该行的 Host 的逃生通道。
 
 ## 策略
 
 | 委派 | 结果 |
 |---|---|
-| 全新子代理（`spawn`），不带模型字段 | 补成授权集合的默认项（`defaultModel`，未配置时是列表第一个） |
-| 全新子代理，只给了 `reasoning_effort` | 默认路由，保留调用方的 effort |
-| 任何子代理，显式路由属于授权集合 | 完全按请求原样放行 |
-| 任何子代理，显式指定授权集合之外的路由 | **抛错** —— 委派可见地失败 |
-| Settings 行允许 0 个模型、被禁用、或不存在 | 每次全新委派都**抛错**，并写明修复方法 |
-| 配置的 `defaultModel` 不在当前授权集合内 | 每次全新委派都**抛错**，并写明修复方法 |
-| Fork 类 provider（`inheritsParentContext`） | 留在继承来的路由上，复用对话前缀仍然命中缓存 |
-| 不具备 `agentOptions` 能力的 provider（进程外 `codex`/`claude-code`） | 交给该 provider，只报告一次警告 |
+| 全新子代理（`spawn`），不带模型字段 | 补成路由清单的默认项（`defaultModel`，未配置时是列表第一个） |
+| 全新子代理，只给了 `reasoning_effort` | 默认路由，保留调用方的 effort —— effort 不算「指定了路由」 |
+| 任何子代理，`provider` 或 `model` 任一被指定 | **原样放行**：不查清单、不改写、不报错 |
+| 未指定路由的委派，且 Settings 行允许 0 个模型、被禁用、不存在、或清单被该行自己拒绝 | **抛错**，并写明修复方法 |
+| 未指定路由的委派，且配置的 `defaultModel` 不在当前清单内 | **抛错**，并写明修复方法 |
+| 未指定路由的委派，Fork 类 provider（`inheritsParentContext`） | 留在继承来的路由上，复用对话前缀仍然命中缓存 |
+| 未指定路由的委派，不具备 `agentOptions` 能力的 provider（进程外 `codex`/`claude-code`） | 交给该 provider，只报告一次警告 |
 
-Fork 例外与进程外例外是刻意的：固定这两者花费大于收益，而且都无法在进程内强制。以 `context: "fork"` 生成的 teammate 属于 Fork 例外；全新 teammate（默认的 `freshProvider`）会被路由。两个例外仍然会用授权集合校验*显式*给出的路由。
+**路由清单只决定默认项，不是许可证。** 指定了路由的委派由调用方负责：它们在查清单之前就原样放行了，连 Settings 行读不出来时也一样。DSH 自己的 `subagent` 工具仍会用**该会话冻结的**那份清单拦一次模型显式指定的越界路由 —— 那是工具层的策略，本插件解不开，也不该解；workflow `agent()` 这类绕过工具层的调用则完全由调用方负责。
+
+两个例外（Fork 与进程外 provider）都只适用于**未指定路由**的委派：固定这两者花费大于收益，而且都无法在进程内强制。以 `context: "fork"` 生成的 teammate 属于 Fork 例外；全新 teammate（默认的 `freshProvider`）会被路由。
 
 ## 配置
 
@@ -83,12 +84,9 @@ Fork 例外与进程外例外是刻意的：固定这两者花费大于收益，
     provider: <provider-id>
     model: <model-id>
     reasoningEffort: high          # 可选
-    allowedModels:                 # 可选；默认为固定的那条路由
-      - provider: <provider-id>
-        model: <model-id>
 ```
 
-`settings` 模式下 `provider`、`model` 和 `allowedModels` 会在激活时被拒绝，因此过期的静态路由无法悄悄生效；`defaultModel` 只在 `settings` 模式有意义，`pinned` 模式下写它会被拒绝（固定路由本身就是默认项）。`pinned` 模式下 `allowedModels` 必须包含固定的那条路由。未知配置键是激活错误，而不是静默忽略。`reasoningEffort` 只在调用方自己没有指定 effort 时套用；随包配置已经不再设置它 —— 未指定时由 DSH 填该模型自己的默认强度（pi-ai 适配器取 provider 配置的 `reasoning` 字段），强度因此不再被本插件钉死。若你在没有该默认值的 Host 上仍想兜底，才需要在这里写。
+`settings` 模式下 `provider` 与 `model` 会在激活时被拒绝，因此过期的静态路由无法悄悄生效；`defaultModel` 只在 `settings` 模式有意义，`pinned` 模式下写它会被拒绝（固定路由本身就是默认项）。未知配置键是激活错误，而不是静默忽略 —— `allowedModels` 已不再是配置键：清单只决定默认项，指定了路由的委派不查清单，所以「显式路由可以指名哪些」不再是一条规则。`reasoningEffort` 只在调用方自己没有指定 effort 时套用；随包配置已经不再设置它 —— 未指定时由 DSH 填该模型自己的默认强度（pi-ai 适配器取 provider 配置的 `reasoning` 字段），强度因此不再被本插件钉死。若你在没有该默认值的 Host 上仍想兜底，才需要在这里写。
 
 字段级的权威声明是插件导出的 `Config`（在 `config-schema.js` 里）：DSH 在激活前用它校验整行 `config`，报错自带字段路径；`Config.listConfigs` 可把它投影成 JSON Schema，写配置前先查它即可。Schemastery 会合并未知键、也无法表达「哪些键能同时出现」，所以键闭包与上面的模式规则仍由 `plugin.js` 在 schema 之上执行。
 
@@ -96,7 +94,7 @@ Fork 例外与进程外例外是刻意的：固定这两者花费大于收益，
 
 下面每一项都写成可在另一台机器上复现的形式。只需要一个 Node.js（单元测试需 Node ≥ 20；`tools/read-session.mjs` 用到 `zlib.zstdDecompressSync`，需 Node ≥ 22.15）—— `PATH` 上若没有 `node`，用 Harness 自带的运行时（相对 Harness 安装目录）：`<Harness 安装目录>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`。另外，插件运行时要 `@deepseek-ai/schemastery`，全新克隆先装一次依赖（版本与 Host 自带的那份一致，`package.json` 里锁死）：`npm install`。现场核对另需一个已启用该插件的运行中 Harness。
 
-单元测试 —— 65 项，无需运行 Harness（在 Node 25.8.0 上验证）。在仓库根目录执行：
+单元测试 —— 63 项，无需运行 Harness（在 Node 25.8.0 上验证）。在仓库根目录执行：
 
 ```powershell
 npm install
@@ -105,22 +103,22 @@ node --test
 
 （`node --test test/config-schema.test.mjs` 只跑配置接口：它直接调用 `config-schema.js`，不需要任何替身；`node --test test/route-policy.test.mjs` 只跑策略侧：它直接调用 `route-policy.js`，同样不需要替身；`node --test test/plugin.test.mjs` 只跑接缝与组合侧。）
 
-覆盖内容：配置接口（原生 schema 图、接受与拒绝的取值域、省略字段解析成什么、以及刻意留给 `plugin.js` 的空档）、两种 source、默认路由本身、授权集合内的显式路由原样放行、`defaultModel` 覆盖与「它已不在授权集合内」的报错、每次委派重新读取 Settings 行，Settings 行的所有不可用形态（0 个模型、被禁用、不存在、该行自己就拒绝的清单）、两个例外、授权集合外报错、只警告一次的规则、两种还原形态、治愈上一次激活遗留的 shadow、装在我们的包装之上的包装，以及通过「每次函数读取都重新包装」的 proxy 卸载（正是这个形态打挂了第一版）。
+覆盖内容：配置接口（原生 schema 图、接受与拒绝的取值域、省略字段解析成什么、以及刻意留给 `plugin.js` 的空档）、两种 source、默认路由本身、指定了路由的请求原样放行（含只给一半路由、非字符串值、以及清单读不出来时）、`defaultModel` 覆盖与「它已不在清单内」的报错、每次委派重新读取 Settings 行，Settings 行的所有不可用形态（0 个模型、被禁用、不存在、该行自己就拒绝的清单）、两个例外、只警告一次的规则、两种还原形态、治愈上一次激活遗留的 shadow、装在我们的包装之上的包装，以及通过「每次函数读取都重新包装」的 proxy 卸载（正是这个形态打挂了第一版）。
 
-现场核对 —— 人工执行，每项一次工具调用，需要在已启用该插件的 Harness 上做。`<默认模型>` 指当前授权集合的默认项（配置了 `defaultModel` 就是它，否则是列表第一个）；此处用作示例的路由（`opencodego`、`deepseek-v4.1-flash`）是本环境的，请替换为你自己的。会话日志位于 `$DSH_HOME/sessions/<项目目录名>/<会话 id>/session.v4.jsonl.zstd`（`$DSH_HOME` 默认是 `~/.dsh`，Windows 上是 `%USERPROFILE%\.dsh`）。
+现场核对 —— 人工执行，每项一次工具调用，需要在已启用该插件的 Harness 上做。`<默认模型>` 指当前清单的默认项（配置了 `defaultModel` 就是它，否则是列表第一个）；此处用作示例的路由（`opencodego`、`deepseek-v4.1-flash`）是本环境的，请替换为你自己的。会话日志位于 `$DSH_HOME/sessions/<项目目录名>/<会话 id>/session.v4.jsonl.zstd`（`$DSH_HOME` 默认是 `~/.dsh`，Windows 上是 `%USERPROFILE%\.dsh`）。
 
 | 检查项 | 做法 | 期望 |
 |---|---|---|
 | 全新 `subagent`，不带模型字段 | 用 `subagent` 探测，让它回报自己的 `{{model}}` | `<默认模型>` |
 | workflow `agent()`，不带模型字段 | 用 `workflow` 探测，返回子代理的模型 | `<默认模型>` |
 | 重新勾选模型 | 在 Settings 里改勾另一个模型，重跑 workflow 探测 | 新的列表第一个（或 `defaultModel`），无需重启 |
-| 授权多个模型 + 显式指定 | 勾两个模型，用 `subagent` 显式指定第二个 | 子代理跑第二个模型，不再报错 |
-| 配置 `defaultModel` | 插件行里把 `defaultModel` 指向授权集合里的第二个模型，重跑 workflow 探测 | 子代理跑 `defaultModel` |
+| 勾多个模型 + 显式指定 | 勾两个模型，用 `subagent` 显式指定第二个 | 子代理跑第二个模型，不再报错 |
+| 配置 `defaultModel` | 插件行里把 `defaultModel` 指向清单里的第二个模型，重跑 workflow 探测 | 子代理跑 `defaultModel` |
 | continuable 子代理（Agent Teams 接缝） | `subagent` 加 `run_in_background: true`，再对子会话日志跑 `node tools/read-session.mjs <子会话日志>` | `subagent/descriptor`：`"mode":"continuable","agentProvider":"<provider-id>","agentModel":"<默认模型>"` |
-| 显式指定其它路由 | `subagent` 显式指定一个不在授权集合内的路由 | 报错，写明该路由与授权集合 |
+| 显式指定清单外的路由 | 用 workflow 的 `agent()` 显式指定一个不在清单内的路由（`subagent` 工具那条路先被 DSH 自己拦，验不到本插件） | 子代理**原样跑该路由**，插件不报错 |
 | Lead 不受影响 | `node tools/read-session.mjs <lead 会话日志> request` | `request/header` 保持 Lead 自己的路由 |
 | 禁用 = 不改变 | 禁用该 bundle，然后带显式路由跑一次探测 | 子代理运行该显式路由：没有任何包装 |
-| Harness 升级后的投影契约（先看这一行） | 用 `Config.listConfigs` 查 `entry: include:subagent-pin` | `status: "schema"` 且 `limitations: []`；`provider` 带 `minLength: 1`，两条嵌套路由带 `required: [provider, model]`，`source` 带 `default: "settings"` |
+| Harness 升级后的投影契约（先看这一行） | 用 `Config.listConfigs` 查 `entry: include:subagent-pin` | `status: "schema"` 且 `limitations: []`；`provider` 带 `minLength: 1`，嵌套的 `defaultModel` 带 `required: [provider, model]`，`source` 带 `default: "settings"` |
 
 最后一行是升级 Harness 之后要先看的。`Config` 用的是本仓库自己那份 `@deepseek-ai/schemastery`（在 `package.json` 里精确锁死），运行时校验不经过 Host 自带的那份，所以**版本号不同本身不会让插件挂掉**。但 Host 新版的 `createConfigProjector` 是按一份跨版本契约读我们图的节点形状（`type`/`meta`/`dict`/`inner`/`list`），改了约定就在这里显形：`limitations` 非空即为投影退化，`status` 不再是 `schema` 即为新 Host 不接受这份图。真退化时把 `dependencies` 换成 Host 自带那份的版本（本环境是 `3.18.4`；它只存在于 asar 内：`/dsh/node_modules/@deepseek-ai/schemastery/package.json`），然后重跑单元测试和上面整张表。
 

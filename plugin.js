@@ -1,5 +1,6 @@
 /**
- * Host plugin: give every fresh subagent delegation an authorized LLM route.
+ * Host plugin: give every fresh subagent delegation that names no route the
+ * configured default route.
  *
  * `tool-subagent.agentOptions` is the only configuration-plane knob for a child
  * route, and it exists only on the delegation *tools*. Teammates
@@ -7,7 +8,8 @@
  * `ctx.subagents` directly with no model input, so they inherit the delegating
  * agent's route. This plugin closes that gap at the one seam every delegation
  * path shares: `ctx.subagents.start()` and `startContinuable()`, before the
- * provider resolves child options.
+ * provider resolves child options. A delegation that names a route is left
+ * exactly as its caller wrote it.
  *
  * This file owns the seam and the config *policy*. The accepted shape of a
  * config row is `config-schema.js` — a native Schemastery graph the platform
@@ -86,19 +88,13 @@ function routeEntry(value, field) {
   return { provider: value.provider, model: value.model }
 }
 
-/** Read one route list from config: `Config` owns each entry's shape, this owns the non-empty rule. */
-function routeList(value) {
-  if (!Array.isArray(value) || value.length === 0) fail('config.allowedModels must be a non-empty list of { provider, model }')
-  return value.map((entry, index) => routeEntry(entry, `config.allowedModels[${index}]`))
-}
-
 /**
  * Read the row's config as the policy needs it.
  *
  * `Config` has already rejected a bad shape at activation, so this closes only
  * the gaps of a single-node schema: the key set (Schemastery merges unknown
  * keys) and the rules that depend on more than one field — which keys each mode
- * allows, and that `allowedModels` is non-empty and contains the pinned route.
+ * allows.
  *
  * @param config - The row's config, validated against `Config`.
  * @returns The policy's view: `{ source, ... }`.
@@ -109,7 +105,7 @@ function resolveConfig(config) {
   const source = record.source
   const reasoningEffort = record.reasoningEffort
   if (source === 'settings') {
-    for (const key of ['provider', 'model', 'allowedModels']) {
+    for (const key of ['provider', 'model']) {
       if (record[key] !== undefined) fail(`config.${key} is fixed by the Settings row while config.source is "settings"; remove it or set config.source to "pinned"`)
     }
     const defaultModel = record.defaultModel === undefined ? undefined : routeEntry(record.defaultModel, 'config.defaultModel')
@@ -118,9 +114,7 @@ function resolveConfig(config) {
   if (record.defaultModel !== undefined) fail('config.defaultModel is redundant while config.source is "pinned"; the pinned route is already the default')
   const provider = requiredText(record.provider, 'provider')
   const model = requiredText(record.model, 'model')
-  const allowedModels = record.allowedModels === undefined ? [{ provider, model }] : routeList(record.allowedModels)
-  if (!allowedModels.some((route) => route.provider === provider && route.model === model)) fail(`allowedModels must include the pinned route ${provider}/${model}`)
-  return { source, provider, model, reasoningEffort, allowedModels }
+  return { source, provider, model, reasoningEffort }
 }
 
 /** Render the effort suffix for one diagnostic. */
@@ -255,14 +249,14 @@ export function apply(ctx, config) {
 
   if (pinConfig.source === 'pinned') {
     const { route } = resolveAuthorization(pinConfig, undefined)
-    ctx.logger?.info?.(`${PREFIX}fresh delegations pinned to ${route.provider}/${route.model}${effortText(route.reasoningEffort)}; allowed: ${renderRoutes(route.allowedModels)}`)
+    ctx.logger?.info?.(`${PREFIX}fresh delegations pinned to ${route.provider}/${route.model}${effortText(route.reasoningEffort)}; a delegation that names its own route is passed through`)
     return
   }
   const authorization = resolveAuthorization(pinConfig, readSettings(ctx))
   if (authorization.ok) {
     const { route } = authorization
-    ctx.logger?.info?.(`${PREFIX}fresh delegations follow the Settings row; default ${route.provider}/${route.model}${effortText(route.reasoningEffort)}; authorized: ${renderRoutes(route.allowedModels)}; any other explicitly requested route fails`)
+    ctx.logger?.info?.(`${PREFIX}fresh delegations follow the Settings row; default ${route.provider}/${route.model}${effortText(route.reasoningEffort)}; the row lists: ${renderRoutes(route.allowedModels)}; a delegation that names its own route is passed through`)
   } else {
-    ctx.logger?.warn?.(`${PREFIX}the Settings row cannot authorize a route yet, so every fresh delegation will fail until it does — ${authorization.reason}`)
+    ctx.logger?.warn?.(`${PREFIX}the Settings row cannot supply a default route yet, so every fresh delegation that names no route will fail until it does — ${authorization.reason}`)
   }
 }

@@ -2,16 +2,16 @@
 
 **English** | [简体中文](README.md)
 
-Host plugin that gives every **fresh** subagent delegation an authorized LLM
-route, with no prompt cooperation from the model. The authorized set is the
-models checked in Settings (`subagent-model-selection-settings`), re-read on
-every delegation: a delegation that names no route (which is every teammate,
-workflow `agent()` and nested delegation) gets the default entry —
-`config.defaultModel`, or the first authorized model when unset; a route it does
-name explicitly is left exactly as requested as long as the set authorizes it,
-which keeps the original intent of an agent choosing among the authorized
-models. It is installed as a bundle in a profile (in this environment: profile
-`desktop`, bundle `@local/dsh-subagent-pin`, row `subagent-pin`).
+Host plugin that gives every **fresh** subagent delegation a route — but only one
+that names no route of its own. The route list is the models checked in Settings
+(`subagent-model-selection-settings`), re-read on every delegation: a delegation
+that names no route (which is every teammate, workflow `agent()` and nested
+delegation) gets the default entry — `config.defaultModel`, or the first listed
+model when unset. A request that names `provider` or `model` itself is passed
+through untouched: the plugin does not consult the list, does not rewrite it and
+does not throw — the route is the caller's business. It is installed as a bundle
+in a profile (in this environment: profile `desktop`, bundle
+`@local/dsh-subagent-pin`, row `subagent-pin`).
 
 ## What you get without this plugin
 
@@ -38,7 +38,7 @@ model, and the setting is effectively a no-op:
 Net effect: the setting looks like it worked (a child does run), while the child
 runs the main agent's model. This plugin closes that gap: it injects the route
 before the provider resolves child options, so the model checked in Settings
-actually applies to every fresh delegation.
+actually applies to every fresh delegation that names no route of its own.
 
 ## Why a Host plugin
 
@@ -80,15 +80,15 @@ the parent route.
 
 ## Model source
 
-The Settings row is a **permission** list: it exists so a model-facing `subagent`
-call may name one of those routes, and nothing in DSH ever picks from it — pure
+The Settings row is a **list**: it exists so a model-facing `subagent` call may
+name one of those routes, and nothing in DSH ever picks from it — pure
 inheritance is not constrained by it at all. So this plugin takes over the
 delegations that name nothing (teammates, workflow `agent()`, nested ones) and
-fills in the **default entry** of the authorized set:
+fills in the **default entry** of the list:
 
 - The default is the **first** model of the Settings list; to pin it to another
-  authorized model, set `defaultModel` in this row's config (it must be in the
-  current authorized set, or the delegation fails).
+  listed model, set `defaultModel` in this row's config (it must be in the
+  current list, or the delegation that names no route fails).
 - List order is storage order (the UI keeps stored routes first and appends
   newly checked ones), so `defaultModel` is what makes the default independent
   of it.
@@ -97,29 +97,37 @@ That read happens on every delegation, so re-checking a model applies to the
 next child with no restart — fresher than the shipped `subagent` tool, which
 samples the list when a session receives its delegation tools.
 
-While the row allows zero models, is disabled, or is not composed, **every**
-fresh delegation fails with a message naming the fix. That is deliberate: an
-unauthorized child must never silently fall back to the delegating agent's
-route. `source: pinned` is the escape hatch for a Host without that row.
+While the row allows zero models, is disabled, or is not composed, every fresh
+delegation **that names no route** fails with a message naming the fix. That is
+deliberate: a child with no route of its own must never silently fall back to the
+delegating agent's route. A delegation that names its own route is unaffected —
+the list decides a default, it is not a licence. `source: pinned` is the escape
+hatch for a Host without that row.
 
 ## Policy
 
 | Delegation | Result |
 |---|---|
-| Fresh child (`spawn`), no model fields | Filled with the authorized set's default (`defaultModel`, else the first model) |
-| Fresh child, only `reasoning_effort` given | The default route, caller's effort kept |
-| Any child, an explicit route inside the authorized set | Left exactly as requested |
-| Any child, an explicit route outside the authorized set | **Throws** — the delegation fails visibly |
-| Settings row allows 0 models, disabled, or absent | **Throws** on every fresh delegation, naming the fix |
-| A configured `defaultModel` outside the current authorized set | **Throws** on every fresh delegation, naming the fix |
-| Fork-class provider (`inheritsParentContext`) | Left on the inherited route, so the reused conversation prefix stays cacheable |
-| Provider without the `agentOptions` capability (out-of-process `codex`/`claude-code`) | Left to that provider, reported once as a warning |
+| Fresh child (`spawn`), no model fields | Filled with the list's default (`defaultModel`, else the first model) |
+| Fresh child, only `reasoning_effort` given | The default route, caller's effort kept — effort is not a named route |
+| Any child that names `provider` or `model` | **Passed through untouched**: the list is not consulted, nothing is rewritten, nothing throws |
+| A delegation that names no route, while the Settings row allows 0 models, is disabled, is absent, or rejects its own list | **Throws**, naming the fix |
+| A delegation that names no route, with a configured `defaultModel` outside the current list | **Throws**, naming the fix |
+| A delegation that names no route, on a fork-class provider (`inheritsParentContext`) | Left on the inherited route, so the reused conversation prefix stays cacheable |
+| A delegation that names no route, on a provider without the `agentOptions` capability (out-of-process `codex`/`claude-code`) | Left to that provider, reported once as a warning |
 
-The fork exception and the out-of-process exception are deliberate: pinning
-either would spend more than it saves, and neither can be enforced in-process.
-Teammates spawned with `context: "fork"` fall under the fork exception; fresh
-teammates (`freshProvider`, the default) are routed. Both exceptions still
-validate an *explicit* route against the authorized set.
+**The list decides a default; it is not a licence.** A delegation that names a
+route belongs to its caller: it is passed through before the list is ever
+consulted, including when the Settings row cannot be read at all. DSH's own
+`subagent` tool still rejects a model-named out-of-list route once, against the
+list **frozen into that session** — that is tool-layer policy, which this plugin
+cannot lift and should not; callers that bypass the tools, such as workflow
+`agent()`, are entirely on their own.
+
+Both exceptions (fork and out-of-process) apply only to a delegation that names
+no route: pinning either would spend more than it saves, and neither can be
+enforced in-process. Teammates spawned with `context: "fork"` fall under the fork
+exception; fresh teammates (`freshProvider`, the default) are routed.
 
 ## Config
 
@@ -146,20 +154,18 @@ The static mode, for a Host without the Settings row:
     provider: <provider-id>
     model: <model-id>
     reasoningEffort: high          # optional
-    allowedModels:                 # optional; defaults to the pinned route
-      - provider: <provider-id>
-        model: <model-id>
 ```
 
-In `settings` mode `provider`, `model` and `allowedModels` are rejected at
-activation, so a stale static route cannot quietly win; `defaultModel` is only
-meaningful in `settings` mode and is rejected under `pinned` (the pinned route
-is already the default). In `pinned` mode `allowedModels` must contain the
-pinned route. An unknown config key is an activation error, not a silent no-op.
-`reasoningEffort` applies only when the caller names no effort of its own, and
-the shipped config no longer sets it: an omitted effort is resolved by DSH to the
-model's own default (for the pi-ai adapter, the provider profile's `reasoning`
-field), so the plugin no longer pins an effort.
+In `settings` mode `provider` and `model` are rejected at activation, so a stale
+static route cannot quietly win; `defaultModel` is only meaningful in `settings`
+mode and is rejected under `pinned` (the pinned route is already the default). An
+unknown config key is an activation error, not a silent no-op — `allowedModels`
+is no longer a config key at all: the list decides a default, a delegation that
+names a route never consults it, so "which routes an explicit request may name"
+stopped being a rule. `reasoningEffort` applies only when the caller names no
+effort of its own, and the shipped config no longer sets it: an omitted effort is
+resolved by DSH to the model's own default (for the pi-ai adapter, the provider
+profile's `reasoning` field), so the plugin no longer pins an effort.
 
 The field-level authority is the `Config` the plugin exports (declared in
 `config-schema.js`): DSH validates the whole `config` row against it before
@@ -182,7 +188,7 @@ installs once (`npm install`; the version is pinned in `package.json` to the one
 the Harness ships with). The live table additionally needs a running Harness
 with this plugin enabled.
 
-Unit tests — 65 tests, no Harness needed (verified on Node 25.8.0). From the
+Unit tests — 63 tests, no Harness needed (verified on Node 25.8.0). From the
 repository root:
 
 ```powershell
@@ -198,20 +204,20 @@ test/plugin.test.mjs` runs the seam and composition half.)
 
 They cover the config interface (the native graph, the accepted and rejected
 domain, what an omitted field resolves to, and the gaps deliberately left to
-`plugin.js`), both sources, the default route itself, an explicit route inside the
-authorized set passing through untouched, `defaultModel` overriding it and the
-error once it leaves the set, the per-delegation re-read of the Settings row,
-every unusable-Settings shape (0 models, disabled, absent, a list the row itself
-rejects), both exceptions, the explicit-route error, the single-warning rule,
-both restoration shapes, healing of a shadow a previous activation left, a
-wrapper installed over ours, and disposal through a proxy that re-wraps every
-function read (the shape that broke the first version).
+`plugin.js`), both sources, the default route itself, a named route passing
+through untouched (including half a route, non-string values, and an unreadable
+list), `defaultModel` overriding it and the error once it leaves the list, the
+per-delegation re-read of the Settings row, every unusable-Settings shape
+(0 models, disabled, absent, a list the row itself rejects), both exceptions, the
+single-warning rule, both restoration shapes, healing of a shadow a previous
+activation left, a wrapper installed over ours, and disposal through a proxy that
+re-wraps every function read (the shape that broke the first version).
 
 Live checks — manual, one tool call each, against a Harness with the plugin
-enabled. `<default model>` means the authorized set's default entry
-(`defaultModel` when configured, otherwise the first model); the routes used as
-examples here (`opencodego`, `deepseek-v4.1-flash`) are this environment's —
-substitute your own. Session logs live at
+enabled. `<default model>` means the list's default entry (`defaultModel` when
+configured, otherwise the first model); the routes used as examples here
+(`opencodego`, `deepseek-v4.1-flash`) are this environment's — substitute your
+own. Session logs live at
 `$DSH_HOME/sessions/<project-dir>/<session-id>/session.v4.jsonl.zstd`
 (`$DSH_HOME` defaults to `~/.dsh`, on Windows `%USERPROFILE%\.dsh`).
 
@@ -220,13 +226,13 @@ substitute your own. Session logs live at
 | Fresh `subagent`, no model fields | `subagent` probe asking for its `{{model}}` | `<default model>` |
 | Workflow `agent()`, no model fields | `workflow` probe returning the child's model | `<default model>` |
 | Re-checked model | re-check another model in Settings, repeat the workflow probe | the new first model (or `defaultModel`), with no restart |
-| Several models authorized, one named | check two models, name the second in a `subagent` call | the child runs the second model, no error |
-| Configured `defaultModel` | point `defaultModel` at the second authorized model, repeat the workflow probe | the child runs `defaultModel` |
+| Several models checked, one named | check two models, name the second in a `subagent` call | the child runs the second model, no error |
+| Configured `defaultModel` | point `defaultModel` at the second listed model, repeat the workflow probe | the child runs `defaultModel` |
 | Continuable child (the Agent Teams seam) | `subagent` with `run_in_background: true`, then `node tools/read-session.mjs <child session log>` | `subagent/descriptor`: `"mode":"continuable","agentProvider":"<provider-id>","agentModel":"<default model>"` |
-| Explicit route outside the set | `subagent` with an explicit provider/model outside the authorized set | error naming the route and the authorized set |
+| Named route outside the list | workflow `agent()` naming a route outside the list (the `subagent` tool path is rejected by DSH itself first, so it cannot show this plugin) | the child **runs that route unchanged**; the plugin does not throw |
 | Lead unaffected | `node tools/read-session.mjs <lead session log> request` | `request/header` keeps the Lead's own route |
 | Disabled = unchanged | disable the bundle, then run a probe with an explicit route | the child runs that explicit route: nothing is wrapped |
-| Projection contract after a Harness upgrade (check this row first) | query `Config.listConfigs` with `entry: include:subagent-pin` | `status: "schema"` and `limitations: []`; `provider` carries `minLength: 1`, both nested routes carry `required: [provider, model]`, `source` carries `default: "settings"` |
+| Projection contract after a Harness upgrade (check this row first) | query `Config.listConfigs` with `entry: include:subagent-pin` | `status: "schema"` and `limitations: []`; `provider` carries `minLength: 1`, the nested `defaultModel` carries `required: [provider, model]`, `source` carries `default: "settings"` |
 
 The last row is what to look at after upgrading the Harness. `Config` uses this
 repository's own `@deepseek-ai/schemastery` (pinned exactly in `package.json`),
