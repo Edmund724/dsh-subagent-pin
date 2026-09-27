@@ -11,14 +11,15 @@
  * provider resolves child options. A delegation that names a route is left
  * exactly as its caller wrote it.
  *
- * This file owns the seam and the config *policy*. The accepted shape of a
- * config row is `config-schema.js` — a native Schemastery graph the platform
- * projects and validates without reading this file — and *which* route a
- * delegation gets, plus every way that answer fails, is `route-policy.js`, a
- * module with no Host dependency. Here the rest is wired up: close the key set
- * and the mode rules a single-node schema cannot express, read the Settings row,
- * hand the values in, throw a rejection, log a notice, and call the original
- * method.
+ * This file owns the seam. The accepted shape of a config row is
+ * `config-schema.js` — a native Schemastery graph the platform projects and
+ * validates without reading this file — *which* route a delegation gets, plus
+ * every way that answer fails, is `route-policy.js`, a module with no Host
+ * dependency, and what the Host must look like for either to reach the seam is
+ * `host-contract.js`, asserted once at activation. Here the rest is wired up:
+ * close the key set and the mode rules a single-node schema cannot express, read
+ * the Settings row, hand the values in, throw a rejection, log a notice, and
+ * call the original method.
  *
  * The policy itself is documented in `README.md`; the domain words are in
  * `CONTEXT.md`.
@@ -39,23 +40,22 @@
  *   behind and warns; disposal drops its own shadow, so disabling the plugin
  *   always returns the service to its unwrapped shape.
  *
- * The wrapper fails activation loudly when the service shape it depends on is
- * absent instead of silently leaving children on the parent route.
+ * The wrapper fails activation loudly when a shape declared in
+ * `host-contract.js` is absent or unreachable, instead of silently leaving
+ * children on the parent route.
  *
  * @module @local/dsh-subagent-pin
  */
 
 import { PREFIX, decideDelegation, renderRoutes, resolveAuthorization } from './route-policy.js'
 import { Config, KNOWN_KEYS } from './config-schema.js'
+import { METHODS, assertSeam, inspectProviderRecord, verifyShadowInstall } from './host-contract.js'
 
 /** The row's config interface: what DSH projects for `Config.listConfigs` and validates before `apply()`. */
 export { Config }
 
 /** Wait for the delegation service instead of failing on a Host composition without it. */
 export const inject = ['subagents']
-
-/** The delegated methods every delegation path shares. */
-const METHODS = ['start', 'startContinuable']
 
 /** Raise one activation-visible configuration or seam failure. */
 function fail(message) {
@@ -129,11 +129,14 @@ function effortText(reasoningEffort) {
  * context: it receives this outcome as a value.
  *
  * @param ctx - Host context exposing `subagentModelSelection`.
- * @returns `{ kind: 'ok', state }`, `{ kind: 'unavailable' }`, or `{ kind: 'failed', message }`.
+ * @returns `{ kind: 'ok', state }`, `{ kind: 'unavailable' }` when the service
+ *   is not composed, `{ kind: 'malformed' }` when it is composed in a shape
+ *   this plugin cannot read, or `{ kind: 'failed', message }`.
  */
 function readSettings(ctx) {
   const settings = typeof ctx.get === 'function' ? ctx.get('subagentModelSelection') : undefined
-  if (settings === null || typeof settings !== 'object' || typeof settings.current !== 'function') return { kind: 'unavailable' }
+  if (settings === undefined) return { kind: 'unavailable' }
+  if (settings === null || typeof settings !== 'object' || typeof settings.current !== 'function') return { kind: 'malformed' }
   try {
     return { kind: 'ok', state: settings.current() }
   } catch (error) {
@@ -188,16 +191,6 @@ function dropOwnShadows(subagents) {
 export function apply(ctx, config) {
   const pinConfig = resolveConfig(config)
   const subagents = ctx.subagents
-  if (subagents === null || typeof subagents !== 'object') fail('the `subagents` service is unavailable; load @deepseek-ai/dsh-subagent in the Host composition')
-  for (const method of METHODS) if (typeof subagents[method] !== 'function') fail(`the \`subagents\` service has no ${method}() method — this Harness moved the delegation seam, so nothing was pinned`)
-  if (!Object.isExtensible(subagents)) fail('the `subagents` service instance is not extensible, so nothing was pinned')
-  if (dropOwnShadows(subagents)) ctx.logger?.warn?.(`${PREFIX}a previous activation left the \`subagents\` service wrapped; the prototype methods were restored before pinning again`)
-
-  // The methods as this context calls them, plus the own properties we replace;
-  // a service whose methods are own properties (not the shipped prototype
-  // shape) is restored from these, and a prototype method by dropping the shadow.
-  const original = Object.fromEntries(METHODS.map((method) => [method, subagents[method]]))
-  const own = Object.fromEntries(METHODS.map((method) => [method, Object.getOwnPropertyDescriptor(subagents, method)]))
 
   const reported = new Set()
   const report = (level, key, message) => {
@@ -206,12 +199,28 @@ export function apply(ctx, config) {
     ctx.logger?.[level]?.(message)
   }
 
+  // Every Host shape the seam depends on is declared, and checked, in one
+  // place: a missing one fails activation here instead of leaving children on
+  // the parent route, and a degraded one names what it costs.
+  for (const notice of assertSeam(ctx)) report(notice.level, notice.key, notice.message)
+  if (dropOwnShadows(subagents)) ctx.logger?.warn?.(`${PREFIX}a previous activation left the \`subagents\` service wrapped; the prototype methods were restored before pinning again`)
+
+  // The methods as this context calls them, plus the own properties we replace;
+  // a service whose methods are own properties (not the shipped prototype
+  // shape) is restored from these, and a prototype method by dropping the shadow.
+  const original = Object.fromEntries(METHODS.map((method) => [method, subagents[method]]))
+  const own = Object.fromEntries(METHODS.map((method) => [method, Object.getOwnPropertyDescriptor(subagents, method)]))
+
   /** Resolve the row's authorization for one delegation, reading Settings fresh. */
   const authorizationOf = () => resolveAuthorization(pinConfig, pinConfig.source === 'settings' ? readSettings(ctx) : undefined)
 
   /** Resolve the request handed to the provider (never mutating the caller's object). */
   const plan = (providerName, request) => {
     const provider = typeof subagents.getProvider === 'function' ? subagents.getProvider(providerName) : undefined
+    if (provider !== undefined) {
+      const problem = inspectProviderRecord(provider)
+      if (problem !== undefined) report('warn', `provider:${providerName}`, `${PREFIX}provider "${providerName}": ${problem}; the delegation is pinned as usual`)
+    }
     const decision = decideDelegation(
       { provider: providerName, request, capabilities: provider?.capabilities, inheritsParentContext: provider?.inheritsParentContext },
       authorizationOf(),
@@ -232,6 +241,22 @@ export function apply(ctx, config) {
   }
 
   for (const method of METHODS) Object.defineProperty(subagents, method, { value: wrappers[method], writable: true, configurable: true })
+
+  // Read the shadows back before registering disposal: a Host that keeps the
+  // write somewhere else must not be left half-wrapped by a failed activation.
+  const installProblem = verifyShadowInstall(subagents, wrappers)
+  if (installProblem !== undefined) {
+    for (const method of METHODS) {
+      try {
+        if (own[method] === undefined) delete subagents[method]
+        else Object.defineProperty(subagents, method, own[method])
+      } catch {
+        // Best effort: the failure reported below is the diagnosis.
+      }
+    }
+    fail(installProblem)
+  }
+
   ctx.effect(() => () => {
     for (const method of METHODS) {
       const current = Object.getOwnPropertyDescriptor(subagents, method)

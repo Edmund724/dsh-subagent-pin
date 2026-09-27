@@ -12,22 +12,9 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { Config, KNOWN_KEYS } from '../config-schema.js'
+import { isNativeConfigSchema } from '@deepseek-ai/dsh-app-boot'
 
-/**
- * The predicate `dsh-app-boot` applies before it will project a schema
- * (`isNativeConfigSchema`). Anything else reports the row as `unsupported`
- * plus an error diagnostic, so this shape is the whole contract.
- */
-function isNativeConfigSchema(value) {
-  const meta = value === null || value === undefined ? undefined : Reflect.get(value, 'meta')
-  return (
-    Reflect.get(value, Symbol.for('schemastery')) === true &&
-    typeof Reflect.get(value, 'type') === 'string' &&
-    meta !== null &&
-    typeof meta === 'object'
-  )
-}
+import { Config, KNOWN_KEYS } from '../config-schema.js'
 
 /** Validate one raw config the way cordis does at activation. */
 function validate(config) {
@@ -52,6 +39,8 @@ function rejected(config, pattern) {
 // ── the interface DSH reads ────────────────────────────────────────────────
 
 test('the config schema is the native Schemastery graph DSH projects', () => {
+  // The predicate is the Host's own export, not a copy of it: a row that fails
+  // it is reported as `unsupported` and its schema is never projected.
   assert.equal(isNativeConfigSchema(Config), true)
   assert.equal(Config.type, 'object')
 })

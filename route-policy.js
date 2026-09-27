@@ -60,7 +60,8 @@ function rejected(reason) {
  *
  * @param config - Validated row config.
  * @param settingsRead - `{ kind: 'ok', state }`, `{ kind: 'unavailable' }`,
- *   `{ kind: 'failed', message }`, or undefined in `pinned` mode.
+ *   `{ kind: 'malformed' }`, `{ kind: 'failed', message }`, or undefined in
+ *   `pinned` mode.
  * @returns `{ ok: true, route }` — `{ provider, model, reasoningEffort }` in
  *   `pinned` mode, plus `allowedModels` in `settings` mode — or
  *   `{ ok: false, reason }`.
@@ -78,6 +79,9 @@ export function resolveAuthorization(config, settingsRead) {
   }
   if (settingsRead === undefined || settingsRead.kind === 'unavailable') {
     return { ok: false, reason: 'config.source is "settings" but @deepseek-ai/dsh-tool-subagent/model-selection-settings is not composed in this Host; add that row or set this plugin to source: "pinned"' }
+  }
+  if (settingsRead.kind === 'malformed') {
+    return { ok: false, reason: 'config.source is "settings" but the subagentModelSelection service is composed in a shape this plugin cannot read (no current()); fix that row or set this plugin to source: "pinned"' }
   }
   if (settingsRead.kind === 'failed') {
     return { ok: false, reason: `the Settings row rejected its own model list: ${settingsRead.message}` }

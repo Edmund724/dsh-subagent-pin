@@ -87,6 +87,13 @@ test('settings source rejects a Host without the Settings row', () => {
   assert.match(resolved.reason, /model-selection-settings is not composed/)
 })
 
+test('settings source rejects a row composed in a shape it cannot read', () => {
+  const resolved = authorize(SOURCES[1], { kind: 'malformed' })
+
+  assert.equal(resolved.ok, false)
+  assert.match(resolved.reason, /composed in a shape this plugin cannot read/)
+})
+
 test('settings source reports the reason the Settings row rejected its own list', () => {
   const resolved = authorize(SOURCES[1], { kind: 'failed', message: 'repeats route "a/b"' })
 
