@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url'
 
 import { Config, KNOWN_KEYS } from '../config-schema.js'
 import { codeSpanTokens, isPathShaped, numbered as documentLines, relativeLinks } from '../test-support/document-tokens.mjs'
+import { ships } from '../test-support/package-files.mjs'
 
 /** The repository root: every document read here sits beside `package.json`. */
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -174,28 +175,6 @@ test('every decision word route-policy.js writes is a word CONTEXT.md defines', 
 
 /** The relative link targets of one document, with the line each sits on. */
 const links = (name) => relativeLinks(ROOT, name)
-
-/**
- * Whether one `files` entry of `package.json` ships a repository-relative path.
- *
- * `*` stays inside one path segment while `**` crosses directories, which is how
- * npm itself reads a `files` entry.
- */
-function ships(entry, file) {
-  let pattern = ''
-  for (let index = 0; index < entry.length; index += 1) {
-    const char = entry[index]
-    if (char === '*' && entry[index + 1] === '*') {
-      pattern += '.*'
-      index += 1
-    } else if (char === '*') {
-      pattern += '[^/]*'
-    } else {
-      pattern += /[.+?^${}()|[\]\\]/u.test(char) ? `\\${char}` : char
-    }
-  }
-  return new RegExp(`^${pattern}$`).test(file)
-}
 
 test('every relative link a document carries resolves, and the package ships it', () => {
   const { files } = JSON.parse(read('package.json'))
