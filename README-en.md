@@ -55,33 +55,25 @@ The injected `request.agentOptions` becomes the child's real route, is recorded
 in the child's `subagent/descriptor`, and survives cold resume (which reads that
 descriptor back).
 
-## How the seam works (read before changing this file)
+## The seam (read CONTEXT's "Host contract" before changing this file)
 
-Reading `ctx.subagents` does not hand back the service instance: Cordis returns a
-tracing proxy whose **function reads are re-wrapped on every access**. A wrapper
-can therefore never recognize itself by comparing function values — an identity
-check silently fails and the wrapper is never removed. Only property
-*descriptors* are stable, and `defineProperty` through that proxy lands on the
-shared instance every consumer reads.
-
-The shipped `start`/`startContinuable` are prototype methods, so a wrapper is an
-*own shadow*: deleting the property exposes the original method again. Both
-activation and disposal work on shadows:
-
-- activation deletes a shadow a previous activation left behind and logs a
-  warning, so a crashed or replaced generation cannot stack wrappers;
-- disposal deletes its own shadow (or, for a service whose methods are own
-  properties, puts the captured property back), so **disabling the plugin always
-  returns the service to its unwrapped shape**.
+This plugin wraps `ctx.subagents.start()` / `startContinuable()` — Cordis
+`intercept` supplies per-service *config* only, and the `subagents` Config carries
+no route field, so those two methods are the one place every delegation path
+meets. Reading `ctx.subagents` hands back a tracing proxy: function values have no
+stable identity, only property *descriptors* do — so a wrapper is an *own shadow*,
+and both activation and disposal work on descriptors rather than on a captured
+function identity. Activation first drops a shadow a previous generation left
+behind, with a warning, and **disabling the plugin always returns the service to
+its unwrapped shape**.
 
 Every Host shape the seam needs is declared once in `host-contract.js` and checked
-once at activation: a missing seam (no `start`, a non-extensible instance, a
-`defineProperty`/`delete` that never reaches the instance) fails activation and
-the row shows as failed instead of silently leaving children on the parent route,
-while a capability downgrade (`getProvider` absent, a provider record missing a
-field) only logs one warning naming what it costs — the promise that matters, a
-route-unspecified delegation never keeping the inherited route, still holds. The
-domain words are in `CONTEXT.md` under "Host contract".
+once at activation: a missing seam fails activation and the row shows as failed
+instead of silently leaving children on the parent route, while a capability
+downgrade (`getProvider` absent, a provider record missing a field) only logs one
+warning naming what it costs — the promise that matters, a route-unspecified
+delegation never keeping the inherited route, still holds. The full reasoning, the
+shape list and the domain words are in `CONTEXT.md` under "Host contract".
 
 ## Model source
 
@@ -114,7 +106,7 @@ hatch for a Host without that row.
 | Delegation | Result |
 |---|---|
 | Fresh child (`spawn`), no model fields | Filled with the list's default (`defaultModel`, else the first model) |
-| Fresh child, only `reasoning_effort` given | The default route, caller's effort kept — effort is not a named route |
+| Fresh child, only effort given (tool parameter `reasoning_effort`, internally `agentOptions.reasoningEffort`) | The default route, caller's effort kept — effort is not a named route (the tool layer counts it as an explicit choice; this plugin deliberately does not) |
 | Any child that names `provider` or `model` | **Passed through untouched**: the list is not consulted, nothing is rewritten, nothing throws |
 | A delegation that names no route, while the Settings row allows 0 models, is disabled, is absent, or rejects its own list | **Throws**, naming the fix |
 | A delegation that names no route, with a configured `defaultModel` outside the current list | **Throws**, naming the fix |
@@ -139,7 +131,18 @@ exception; fresh teammates (`freshProvider`, the default) are routed.
 
 ## Config
 
-The shipped config (default mode — the route follows Settings):
+The shipped config is the section in [`cordis.patch.yml`](cordis.patch.yml):
+`source: settings`, with neither `defaultModel` nor `reasoningEffort` — a
+delegation that names no route takes the first model of the Settings list, and the
+effort is left to the model's own default.
+
+The field-level authority is the `Config` the plugin exports (declared in
+`config-schema.js`): DSH validates the whole `config` row against it before
+activation, with a field path in the message, and `Config.listConfigs` projects it
+into JSON Schema, so an author can query it before writing a config.
+
+The two blocks below are **examples: every writable key** — not the shipped
+content. Example one, default mode — the route follows Settings:
 
 ```yaml
 - id: subagent-pin
@@ -152,7 +155,7 @@ The shipped config (default mode — the route follows Settings):
     reasoningEffort: high       # optional; unset leaves the effort to the provider profile/model default
 ```
 
-The static mode, for a Host without the Settings row:
+Example two, the static mode, for a Host without the Settings row:
 
 ```yaml
 - id: subagent-pin
@@ -171,17 +174,11 @@ unknown config key is an activation error, not a silent no-op — `allowedModels
 is no longer a config key at all: the list decides a default, a delegation that
 names a route never consults it, so "which routes an explicit request may name"
 stopped being a rule. `reasoningEffort` applies only when the caller names no
-effort of its own, and the shipped config no longer sets it: an omitted effort is
+effort of its own, and the shipped config does not set it: an omitted effort is
 resolved by DSH to the model's own default (for the pi-ai adapter, the provider
-profile's `reasoning` field), so the plugin no longer pins an effort.
-
-The field-level authority is the `Config` the plugin exports (declared in
-`config-schema.js`): DSH validates the whole `config` row against it before
-activation, with a field path in the message, and `Config.listConfigs` projects
-it into JSON Schema, so an author can query it before writing a config.
-Schemastery merges unknown keys and cannot express which keys may appear
-together, so the key closure and the mode rules above still run in `plugin.js`
-on top of the schema.
+profile's `reasoning` field). Schemastery merges unknown keys and cannot express
+which keys may appear together, so the key closure and the mode rules above still
+run in `plugin.js` on top of the schema.
 
 ## Verified
 
@@ -198,9 +195,9 @@ tests run against the real Host libraries (`@deepseek-ai/cordis`,
 installs once with `npm install`. The live table additionally needs a running
 Harness with this plugin enabled.
 
-Unit tests — 83 tests (`config-schema` 9 · `route-policy` 32 · `plugin` 27 ·
-`host-contract` 15), no Harness needed (verified on Node 25.8.0). From the
-repository root:
+Unit tests — 87 tests (`config-schema` 9 · `route-policy` 32 · `plugin` 27 ·
+`host-contract` 15 · `docs` 4), no Harness needed (verified on Node 25.8.0). From
+the repository root:
 
 ```powershell
 npm install
@@ -214,7 +211,11 @@ test/route-policy.test.mjs` runs the policy half alone — it calls
 test/plugin.test.mjs` runs the seam and composition half on real Cordis doubles
 (`test-support/host-doubles.mjs`); `node --test test/host-contract.test.mjs` runs
 the Host contract alone — it asserts the proxy, the effect, Schemastery and the
-projection against the pinned libraries, without the plugin.)
+projection against the pinned libraries, without the plugin; `node --test
+test/docs.test.mjs` runs the document guard alone — it reads the two READMEs and
+`CONTEXT.md` as text and asserts that their config keys are declared by the
+schema, their decision words are in the glossary, their relative links exist and
+ship, and the two READMEs carry the same section count, all without the plugin.)
 
 They cover the config interface (the native graph, the accepted and rejected
 domain, what an omitted field resolves to, and the gaps deliberately left to

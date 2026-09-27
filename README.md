@@ -21,16 +21,11 @@ DSH 里「子代理模型」那一行 Settings 是**权限清单 + 发现工具*
 
 本插件包住它们共用的唯一接缝 —— `ctx.subagents.start()` 与 `ctx.subagents.startContinuable()` —— 在 provider 解析子代理 options 之前注入。注入的 `request.agentOptions` 就是子代理的真实路由，会写进子代理的 `subagent/descriptor`，并且冷恢复时靠读回该 descriptor 而存活。
 
-## 接缝的工作方式（改这个文件前必读）
+## 接缝（改代码前先读 CONTEXT 的「Host 契约」）
 
-读取 `ctx.subagents` 拿不到服务实例：Cordis 返回的是 tracing proxy，**函数读取在每次访问时都会被重新包装**。因此包装器永远无法通过比较函数值认出自己 —— 身份检查会静默失败，包装也就永远拆不掉。只有属性 *descriptor* 是稳定的，而通过该 proxy 的 `defineProperty` 会落到所有消费者读到的同一个实例上。
+本插件包住 `ctx.subagents.start()` / `startContinuable()` —— Cordis 的 `intercept` 只供服务*配置*，而 `subagents` 的 Config 里没有路由字段，所以这两个方法就是全部委派路径唯一的汇合点。读 `ctx.subagents` 拿到的是 tracing proxy：函数值身份不稳定，只有属性 *descriptor* 稳定 —— 包装器因此是一个 *own shadow*，激活与卸载都基于 descriptor，不靠捕获的函数身份；激活时会先清掉上一代遗留的 shadow 并记一条警告，而**禁用插件总能把服务还原成未包装的形态**。
 
-随包发布的 `start`/`startContinuable` 是原型方法，所以包装器是一个 *own shadow*：删掉该属性就重新露出原方法。激活与卸载都基于 shadow：
-
-- 激活时会先删掉上一次激活遗留的 shadow 并记录一条警告，因此崩溃或被替换的上一代不会叠加包装；
-- 卸载时删掉自己的 shadow（若该服务的方法是 own property，则写回捕获到的属性），所以**禁用插件总能把服务还原成未包装的形态**。
-
-接缝依赖的每一项 Host 形状都在 `host-contract.js` 里声明一次、激活时检查一次：接缝不存在（没有 `start`、实例不可扩展、`defineProperty`/`delete` 落不到实例上）会显式失败，该行状态变成 failed，而不是悄悄把子代理留在父路由上；能力类退化（`getProvider` 缺席、provider 记录缺字段）只记一条点名的警告，因为「未指定路由的委派绝不留继承」在那种情况下仍然成立。词表见 `CONTEXT.md` 的「Host 契约」。
+接缝依赖的每一项 Host 形状都在 `host-contract.js` 里声明一次、激活时检查一次：接缝不存在就显式失败（该行状态 failed），而不是悄悄把子代理留在父路由上；能力类退化（`getProvider` 缺席、provider 记录缺字段）只记一条点名的警告，因为「未指定路由的委派绝不留继承」在那种情况下仍然成立。完整推理、形状清单与词表见 `CONTEXT.md` 的「Host 契约」。
 
 ## 模型来源
 
@@ -48,7 +43,7 @@ Settings 的那一行是**清单**：它的存在只是为了让面向模型的 
 | 委派 | 结果 |
 |---|---|
 | 全新子代理（`spawn`），不带模型字段 | 补成路由清单的默认项（`defaultModel`，未配置时是列表第一个） |
-| 全新子代理，只给了 `reasoning_effort` | 默认路由，保留调用方的 effort —— effort 不算「指定了路由」 |
+| 全新子代理，只给了 effort（工具参数 `reasoning_effort`，内部字段 `agentOptions.reasoningEffort`） | 默认路由，保留调用方的 effort —— effort 不算「指定了路由」（工具层把它算作显式选择，本插件刻意相反） |
 | 任何子代理，`provider` 或 `model` 任一被指定 | **原样放行**：不查清单、不改写、不报错 |
 | 未指定路由的委派，且 Settings 行允许 0 个模型、被禁用、不存在、或清单被该行自己拒绝 | **抛错**，并写明修复方法 |
 | 未指定路由的委派，且配置的 `defaultModel` 不在当前清单内 | **抛错**，并写明修复方法 |
@@ -62,7 +57,11 @@ Settings 的那一行是**清单**：它的存在只是为了让面向模型的 
 
 ## 配置
 
-随包发布的配置（默认模式 —— 路由跟随 Settings）：
+随包发布的配置就是 [`cordis.patch.yml`](cordis.patch.yml) 的那一节：`source: settings`，不设 `defaultModel`、不设 `reasoningEffort` —— 未指定路由的委派取 Settings 列表第一个，强度交给模型自己的默认值。
+
+字段级的权威声明是插件导出的 `Config`（在 `config-schema.js` 里）：DSH 在激活前用它校验整行 `config`，报错自带字段路径；`Config.listConfigs` 可把它投影成 JSON Schema，写配置前先查它即可。
+
+下面两块是**示例：所有可写键**，不是随包内容。默认模式 —— 路由跟随 Settings：
 
 ```yaml
 - id: subagent-pin
@@ -75,7 +74,7 @@ Settings 的那一行是**清单**：它的存在只是为了让面向模型的 
     reasoningEffort: high       # 可选；不写就交给 provider 配置/模型自己的默认
 ```
 
-静态模式，用于没有 Settings 那一行的 Host：
+示例二 —— 静态模式，用于没有 Settings 那一行的 Host：
 
 ```yaml
 - id: subagent-pin
@@ -87,22 +86,20 @@ Settings 的那一行是**清单**：它的存在只是为了让面向模型的 
     reasoningEffort: high          # 可选
 ```
 
-`settings` 模式下 `provider` 与 `model` 会在激活时被拒绝，因此过期的静态路由无法悄悄生效；`defaultModel` 只在 `settings` 模式有意义，`pinned` 模式下写它会被拒绝（固定路由本身就是默认项）。未知配置键是激活错误，而不是静默忽略 —— `allowedModels` 已不再是配置键：清单只决定默认项，指定了路由的委派不查清单，所以「显式路由可以指名哪些」不再是一条规则。`reasoningEffort` 只在调用方自己没有指定 effort 时套用；随包配置已经不再设置它 —— 未指定时由 DSH 填该模型自己的默认强度（pi-ai 适配器取 provider 配置的 `reasoning` 字段），强度因此不再被本插件钉死。若你在没有该默认值的 Host 上仍想兜底，才需要在这里写。
-
-字段级的权威声明是插件导出的 `Config`（在 `config-schema.js` 里）：DSH 在激活前用它校验整行 `config`，报错自带字段路径；`Config.listConfigs` 可把它投影成 JSON Schema，写配置前先查它即可。Schemastery 会合并未知键、也无法表达「哪些键能同时出现」，所以键闭包与上面的模式规则仍由 `plugin.js` 在 schema 之上执行。
+`settings` 模式下 `provider` 与 `model` 会在激活时被拒绝，因此过期的静态路由无法悄悄生效；`defaultModel` 只在 `settings` 模式有意义，`pinned` 模式下写它会被拒绝（固定路由本身就是默认项）。未知配置键是激活错误，而不是静默忽略 —— `allowedModels` 已不再是配置键：清单只决定默认项，指定了路由的委派不查清单，所以「显式路由可以指名哪些」不再是一条规则。`reasoningEffort` 只在调用方自己没有指定 effort 时套用；随包配置不设它，未指定时由 DSH 填该模型自己的默认强度（pi-ai 适配器取 provider 配置的 `reasoning` 字段）。若你在没有该默认值的 Host 上仍想兜底，才需要在这里写。Schemastery 会合并未知键、也无法表达「哪些键能同时出现」，所以键闭包与上面的模式规则仍由 `plugin.js` 在 schema 之上执行。
 
 ## 已验证
 
 下面每一项都写成可在另一台机器上复现的形式。只需要一个 Node.js（单元测试需 Node ≥ 20；`tools/read-session.mjs` 用到 `zlib.zstdDecompressSync`，需 Node ≥ 22.15）—— `PATH` 上若没有 `node`，用 Harness 自带的运行时（相对 Harness 安装目录）：`<Harness 安装目录>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`。另外，插件运行时要 `@deepseek-ai/schemastery`，契约测试要对真实的 Host 库跑（`@deepseek-ai/cordis`、`@deepseek-ai/dsh-app-boot`），三者都按版本号精确锁在 `package.json` 里（只给测试用，运行时不加载），全新克隆先装一次依赖：`npm install`。现场核对另需一个已启用该插件的运行中 Harness。
 
-单元测试 —— 83 项（`config-schema` 9 · `route-policy` 32 · `plugin` 27 · `host-contract` 15），无需运行 Harness（在 Node 25.8.0 上验证）。在仓库根目录执行：
+单元测试 —— 87 项（`config-schema` 9 · `route-policy` 32 · `plugin` 27 · `host-contract` 15 · `docs` 4），无需运行 Harness（在 Node 25.8.0 上验证）。在仓库根目录执行：
 
 ```powershell
 npm install
 node --test
 ```
 
-（`node --test test/config-schema.test.mjs` 只跑配置接口：直接调用 `config-schema.js`，不需要任何替身；`node --test test/route-policy.test.mjs` 只跑策略侧：直接调用 `route-policy.js`，同样不需要替身；`node --test test/plugin.test.mjs` 只跑接缝与组合侧，用的是真实 Cordis 上的替身（`test-support/host-doubles.mjs`）；`node --test test/host-contract.test.mjs` 只跑 Host 契约：对着下面锁死的库断言代理、effect、Schemastery 与投影，不经过插件。）
+（`node --test test/config-schema.test.mjs` 只跑配置接口：直接调用 `config-schema.js`，不需要任何替身；`node --test test/route-policy.test.mjs` 只跑策略侧：直接调用 `route-policy.js`，同样不需要替身；`node --test test/plugin.test.mjs` 只跑接缝与组合侧，用的是真实 Cordis 上的替身（`test-support/host-doubles.mjs`）；`node --test test/host-contract.test.mjs` 只跑 Host 契约：对着下面锁死的库断言代理、effect、Schemastery 与投影，不经过插件；`node --test test/docs.test.mjs` 只跑文档守卫：把两份 README 与 `CONTEXT.md` 读成文本，断言其中的 config 键被 schema 声明、决定词在词表里、相对链接存在且随包发布、两份 README 的章节数相等，同样不经过插件。）
 
 覆盖内容：配置接口（原生 schema 图、接受与拒绝的取值域、省略字段解析成什么、以及刻意留给 `plugin.js` 的空档）、两种 source、默认路由本身、指定了路由的请求原样放行（含只给一半路由、非字符串值、以及清单读不出来时）、`defaultModel` 覆盖与「它已不在清单内」的报错、每次委派重新读取 Settings 行，Settings 行的所有不可用形态（0 个模型、被禁用、不存在、该行自己就拒绝的清单）、两个例外、只警告一次的规则、两种还原形态、治愈上一次激活遗留的 shadow、装在我们的包装之上的包装、通过「每次函数读取都重新包装」的 proxy 卸载（正是这个形态打挂了第一版），以及 Host 契约本身：proxy 的三条陷阱与「每次读取都新建包装」、`defineProperty`/`delete` 落到实例、`ctx.effect` 立即执行并登记它返回的 disposer、Schemastery 的四条行为、Host 的 `isNativeConfigSchema` 与 `createConfigProjector` 对 `Config` 的投影，还有激活期的自检（写入被改道就拒绝激活、provider 记录读不出来就点名警告）。
 
