@@ -152,7 +152,7 @@ content. Example one, default mode — the route follows Settings:
     defaultModel:               # optional; defaults to the first Settings model
       provider: <provider-id>
       model: <model-id>
-    reasoningEffort: high       # optional; unset leaves the effort to the provider profile/model default
+    reasoningEffort: high       # optional; one of DSH's seven thinking levels; unset leaves the effort to the provider profile/model default
 ```
 
 Example two, the static mode, for a Host without the Settings row:
@@ -164,7 +164,7 @@ Example two, the static mode, for a Host without the Settings row:
     source: pinned
     provider: <provider-id>
     model: <model-id>
-    reasoningEffort: high          # optional
+    reasoningEffort: high          # optional; one of DSH's seven thinking levels
 ```
 
 In `settings` mode `provider` and `model` are rejected at activation, so a stale
@@ -174,9 +174,17 @@ unknown config key is an activation error, not a silent no-op — `allowedModels
 is no longer a config key at all: the list decides a default, a delegation that
 names a route never consults it, so "which routes an explicit request may name"
 stopped being a rule. `reasoningEffort` applies only when the caller names no
-effort of its own, and the shipped config does not set it: an omitted effort is
-resolved by DSH to the model's own default (for the pi-ai adapter, the provider
-profile's `reasoning` field). Schemastery merges unknown keys and cannot express
+effort of its own, and its value must be one of DSH's seven thinking levels
+(`off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`, the same vocabulary as the
+pi-ai profile's `reasoning` field): anything else is an **activation error**
+carrying the field path, instead of a failure that only shows up on the request
+path. The shipped config does not set it: an omitted effort is resolved by DSH to
+the model's own default (for the pi-ai adapter, the provider profile's
+`reasoning` field). **The key states which effort is wanted; it does not promise
+the model it lands on accepts it** — that answer belongs to DSH on the request
+path, where an unsupported effort is rejected with the provider, model and effort
+named, never clamped and never dropped. This plugin neither validates nor
+rewrites it, and never changes the route because of it. Schemastery merges unknown keys and cannot express
 which keys may appear together, so the key closure and the mode rules above still
 run in `plugin.js` on top of the schema.
 
@@ -195,7 +203,7 @@ tests run against the real Host libraries (`@deepseek-ai/cordis`,
 installs once with `npm install`. The live table additionally needs a running
 Harness with this plugin enabled.
 
-Unit tests — 87 tests (`config-schema` 9 · `route-policy` 32 · `plugin` 27 ·
+Unit tests — 88 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 27 ·
 `host-contract` 15 · `docs` 4), no Harness needed (verified on Node 25.8.0). From
 the repository root:
 
@@ -253,7 +261,7 @@ own. Session logs live at
 | Named route outside the list | workflow `agent()` naming a route outside the list (the `subagent` tool path is rejected by DSH itself first, so it cannot show this plugin) | the child **runs that route unchanged**; the plugin does not throw |
 | Lead unaffected | `node tools/read-session.mjs <lead session log> request` | `request/header` keeps the Lead's own route |
 | Disabled = unchanged | disable the bundle, then run a probe with an explicit route | the child runs that explicit route: nothing is wrapped |
-| Projection contract after a Harness upgrade (check this row first) | query `Config.listConfigs` with `entry: include:subagent-pin` (the offline part of this row is asserted in `test/host-contract.test.mjs` against the pinned library; `status` is only observable on the running Host) | `status: "schema"` and `limitations: []`; `provider` carries `minLength: 1`, the nested `defaultModel` carries `required: [provider, model]`, `source` carries `default: "settings"` |
+| Projection contract after a Harness upgrade (check this row first) | query `Config.listConfigs` with `entry: include:subagent-pin` (the offline part of this row is asserted in `test/host-contract.test.mjs` against the pinned library; `status` is only observable on the running Host) | `status: "schema"` and `limitations: []`; `provider` carries `minLength: 1`, the nested `defaultModel` carries `required: [provider, model]`, `source` carries `default: "settings"`, `reasoningEffort` carries a seven-level `const` domain |
 
 The last row is what to look at after upgrading the Harness. `Config` uses this
 repository's own `@deepseek-ai/schemastery` (pinned exactly in `package.json`),
@@ -274,7 +282,11 @@ Two cautions: **`npm view <package> version` lies** — it prints the `latest` t
 and this environment's `dsh-app-boot` is `0.1.0-rc.6`, older than the shipped
 `0.1.7-rc.2`, so `devDependencies` must carry exact versions, never ranges; and on
 a Harness upgrade, reconcile all three versions, re-run the unit tests, then run
-the whole table above.
+the whole table above. One coupling does **not** ride on a package version:
+`THINKING_LEVELS` in `config-schema.js` is the same vocabulary as the pi-ai
+profile's `reasoning` field (`z.union(THINKING_LEVELS)` in `llm-pi-ai`) — a level
+the Host adds has to be added here, or the schema starts refusing an effort the
+Host already knows.
 
 `tools/read-session.mjs` reads a durable session log from evidence; it splits the
 log's concatenated zstd frames, which a single-shot decompress loses.

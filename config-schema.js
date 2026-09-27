@@ -36,6 +36,22 @@ const route = z.object({
 })
 
 /**
+ * Every thinking level DSH itself accepts, in the Host's own escalation order.
+ *
+ * This is the Host's vocabulary, not this plugin's: it is the enum of the pi-ai
+ * profile field (`reasoning`, `llm-pi-ai.js` `z.union(THINKING_LEVELS)`) that
+ * the Host resolves a configured effort from, and the set its adapters compare a
+ * request against. A value outside it can only be refused later, on the request
+ * path, with no field path to point at; declaring the same close set here makes
+ * an unknown level an activation error instead.
+ *
+ * Its price is one line in the upgrade checklist: adding a level to the Host
+ * means adding it here (README, beside the three pinned packages), or this
+ * schema starts refusing a level the Host offers.
+ */
+const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+
+/**
  * The accepted shape of this row's `config`.
  *
  * `source` picks the mode: `settings` follows the Settings row (and forbids the
@@ -49,7 +65,7 @@ export const Config = z.object({
   source: z.union([z.const('settings'), z.const('pinned')]).default('settings').description('Where the default route for an unspecified delegation comes from: the Settings row, or this row.'),
   provider: z.string().min(1).description('Required with source "pinned"; forbidden with source "settings".'),
   model: z.string().min(1).description('Required with source "pinned"; forbidden with source "settings".'),
-  reasoningEffort: z.string().description('Reasoning effort handed to every pinned delegation, e.g. "high".'),
+  reasoningEffort: z.union(THINKING_LEVELS).description('Reasoning effort handed to every pinned delegation; one of the thinking levels DSH itself offers. Whether the effective model accepts it is the Host\'s answer, given on the request path.'),
   defaultModel: route.default(undefined).description('Route an unspecified delegation uses in "settings" mode. Must be one the Settings row lists; forbidden with source "pinned".'),
 })
 

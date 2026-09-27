@@ -71,7 +71,7 @@ Settings 的那一行是**清单**：它的存在只是为了让面向模型的 
     defaultModel:               # 可选；默认取 Settings 列表第一个
       provider: <provider-id>
       model: <model-id>
-    reasoningEffort: high       # 可选；不写就交给 provider 配置/模型自己的默认
+    reasoningEffort: high       # 可选；DSH 的七个 thinking level 之一；不写就交给 provider 配置/模型自己的默认
 ```
 
 示例二 —— 静态模式，用于没有 Settings 那一行的 Host：
@@ -83,16 +83,16 @@ Settings 的那一行是**清单**：它的存在只是为了让面向模型的 
     source: pinned
     provider: <provider-id>
     model: <model-id>
-    reasoningEffort: high          # 可选
+    reasoningEffort: high          # 可选；DSH 的七个 thinking level 之一
 ```
 
-`settings` 模式下 `provider` 与 `model` 会在激活时被拒绝，因此过期的静态路由无法悄悄生效；`defaultModel` 只在 `settings` 模式有意义，`pinned` 模式下写它会被拒绝（固定路由本身就是默认项）。未知配置键是激活错误，而不是静默忽略 —— `allowedModels` 已不再是配置键：清单只决定默认项，指定了路由的委派不查清单，所以「显式路由可以指名哪些」不再是一条规则。`reasoningEffort` 只在调用方自己没有指定 effort 时套用；随包配置不设它，未指定时由 DSH 填该模型自己的默认强度（pi-ai 适配器取 provider 配置的 `reasoning` 字段）。若你在没有该默认值的 Host 上仍想兜底，才需要在这里写。Schemastery 会合并未知键、也无法表达「哪些键能同时出现」，所以键闭包与上面的模式规则仍由 `plugin.js` 在 schema 之上执行。
+`settings` 模式下 `provider` 与 `model` 会在激活时被拒绝，因此过期的静态路由无法悄悄生效；`defaultModel` 只在 `settings` 模式有意义，`pinned` 模式下写它会被拒绝（固定路由本身就是默认项）。未知配置键是激活错误，而不是静默忽略 —— `allowedModels` 已不再是配置键：清单只决定默认项，指定了路由的委派不查清单，所以「显式路由可以指名哪些」不再是一条规则。`reasoningEffort` 只在调用方自己没有指定 effort 时套用，取值必须是 DSH 自己的七个 thinking level 之一（`off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`，与 pi-ai profile 的 `reasoning` 字段同一组词）：写别的值是**激活错误**并带字段路径，而不是等到请求时才失败。随包配置不设它，未指定时由 DSH 填该模型自己的默认强度（pi-ai 适配器取 provider 配置的 `reasoning` 字段）。**这个键只声明「想用哪个强度」，不保证落到的模型接受它** —— 是否接受由 DSH 在请求路径判定：不支持即拒绝，消息点名 provider/model/effort，不 clamp、不丢弃；插件不校验、不改写，也不因此改路由。Schemastery 会合并未知键、也无法表达「哪些键能同时出现」，所以键闭包与上面的模式规则仍由 `plugin.js` 在 schema 之上执行。
 
 ## 已验证
 
 下面每一项都写成可在另一台机器上复现的形式。只需要一个 Node.js（单元测试需 Node ≥ 20；`tools/read-session.mjs` 用到 `zlib.zstdDecompressSync`，需 Node ≥ 22.15）—— `PATH` 上若没有 `node`，用 Harness 自带的运行时（相对 Harness 安装目录）：`<Harness 安装目录>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`。另外，插件运行时要 `@deepseek-ai/schemastery`，契约测试要对真实的 Host 库跑（`@deepseek-ai/cordis`、`@deepseek-ai/dsh-app-boot`），三者都按版本号精确锁在 `package.json` 里（只给测试用，运行时不加载），全新克隆先装一次依赖：`npm install`。现场核对另需一个已启用该插件的运行中 Harness。
 
-单元测试 —— 87 项（`config-schema` 9 · `route-policy` 32 · `plugin` 27 · `host-contract` 15 · `docs` 4），无需运行 Harness（在 Node 25.8.0 上验证）。在仓库根目录执行：
+单元测试 —— 88 项（`config-schema` 10 · `route-policy` 32 · `plugin` 27 · `host-contract` 15 · `docs` 4），无需运行 Harness（在 Node 25.8.0 上验证）。在仓库根目录执行：
 
 ```powershell
 npm install
@@ -116,11 +116,11 @@ node --test
 | 显式指定清单外的路由 | 用 workflow 的 `agent()` 显式指定一个不在清单内的路由（`subagent` 工具那条路先被 DSH 自己拦，验不到本插件） | 子代理**原样跑该路由**，插件不报错 |
 | Lead 不受影响 | `node tools/read-session.mjs <lead 会话日志> request` | `request/header` 保持 Lead 自己的路由 |
 | 禁用 = 不改变 | 禁用该 bundle，然后带显式路由跑一次探测 | 子代理运行该显式路由：没有任何包装 |
-| Harness 升级后的投影契约（先看这一行） | 用 `Config.listConfigs` 查 `entry: include:subagent-pin`（其中可离线判断的部分由 `test/host-contract.test.mjs` 对着锁死的库断言；`status` 只有在运行的 Host 上才看得到） | `status: "schema"` 且 `limitations: []`；`provider` 带 `minLength: 1`，嵌套的 `defaultModel` 带 `required: [provider, model]`，`source` 带 `default: "settings"` |
+| Harness 升级后的投影契约（先看这一行） | 用 `Config.listConfigs` 查 `entry: include:subagent-pin`（其中可离线判断的部分由 `test/host-contract.test.mjs` 对着锁死的库断言；`status` 只有在运行的 Host 上才看得到） | `status: "schema"` 且 `limitations: []`；`provider` 带 `minLength: 1`，嵌套的 `defaultModel` 带 `required: [provider, model]`，`source` 带 `default: "settings"`，`reasoningEffort` 带七个 level 的 `const` 取值域 |
 
 最后一行是升级 Harness 之后要先看的。`Config` 用的是本仓库自己那份 `@deepseek-ai/schemastery`（`package.json` 里精确锁死），运行时校验不经过 Host 自带的那份，所以**版本号不同本身不会让插件挂掉**。但 Host 新版的 `createConfigProjector` 是按一份跨版本契约读我们图的节点形状（`type`/`meta`/`dict`/`inner`/`list`），改了约定就在这里显形：`limitations` 非空即为投影退化，`status` 不再是 `schema` 即为新 Host 不接受这份图。
 
-契约测试同理，而且更早：`test/host-contract.test.mjs` 是对着**锁死的三个包**跑的 —— `@deepseek-ai/schemastery`、`@deepseek-ai/cordis`、`@deepseek-ai/dsh-app-boot`。它们必须与随包的那份同版本，否则测的是另一个 Host。随包版本读自 `app.asar` 内的 `/dsh/node_modules/@deepseek-ai/*/package.json`（本环境：`schemastery` 3.18.4、`cordis` 4.0.4、`dsh-app-boot` 0.1.7-rc.2）。两点注意：**`npm view <包> version` 会骗人** —— 它给的是 `latest` 标签，本环境的 `dsh-app-boot` 是 `0.1.0-rc.6`，比随包的 `0.1.7-rc.2` 旧，所以 `devDependencies` 必须写精确版本号、不能写范围；升级 Harness 时把这三个版本一并核对、重跑单元测试，再跑上面整张表。
+契约测试同理，而且更早：`test/host-contract.test.mjs` 是对着**锁死的三个包**跑的 —— `@deepseek-ai/schemastery`、`@deepseek-ai/cordis`、`@deepseek-ai/dsh-app-boot`。它们必须与随包的那份同版本，否则测的是另一个 Host。随包版本读自 `app.asar` 内的 `/dsh/node_modules/@deepseek-ai/*/package.json`（本环境：`schemastery` 3.18.4、`cordis` 4.0.4、`dsh-app-boot` 0.1.7-rc.2）。两点注意：**`npm view <包> version` 会骗人** —— 它给的是 `latest` 标签，本环境的 `dsh-app-boot` 是 `0.1.0-rc.6`，比随包的 `0.1.7-rc.2` 旧，所以 `devDependencies` 必须写精确版本号、不能写范围；升级 Harness 时把这三个版本一并核对、重跑单元测试，再跑上面整张表。另有一处**不靠包版本**的耦合：`config-schema.js` 的 `THINKING_LEVELS` 就是 pi-ai profile `reasoning` 字段的那组词（`llm-pi-ai` 的 `z.union(THINKING_LEVELS)`）—— Host 新增一个 level 就要在这里补上，否则 schema 会拒掉一个 Host 已经认识的强度。
 
 `tools/read-session.mjs` 从证据里读一份持久会话日志；它会切分日志中拼接的 zstd 帧 —— 单次解压会丢掉后面的帧。
 

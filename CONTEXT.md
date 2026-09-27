@@ -42,4 +42,5 @@
 ## 已排除
 
 - **不用 `@deepseek-ai/dsh-invariants` 表达这份契约。** 完整理由见 `.agents/notes/implemented/architecture/2026-09-27-接缝与已排除.md`。
+- **插件不按路由校验思考强度（`reasoningEffort`）。** 配置面只收 Host 自己的七个 thinking level；强度是否被落到的模型接受由 DSH 在请求路径回答（拒绝、不 clamp、不丢弃）。完整理由见 `.agents/notes/implemented/architecture/2026-09-27-强度不是插件的承诺.md`。
 - **`ctx.effect` 的返回值形态与卸载顺序不写进契约。** 真实语义是「立即同步执行回调 + 把返回的函数登记为 disposer」；必须成立的那半边由 `test/host-contract.test.mjs` 断言。理由同上。

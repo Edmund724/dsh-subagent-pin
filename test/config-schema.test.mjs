@@ -87,7 +87,33 @@ test('a source outside the two modes is rejected at its own path', () => {
 test('a route field is a non-empty string, never a number or an empty value', () => {
   rejected({ source: 'pinned', provider: '', model: 'm' }, /\$\.provider expected string length >= 1/)
   rejected({ source: 'pinned', provider: 5, model: 'm' }, /\$\.provider expected string/)
-  rejected({ source: 'settings', reasoningEffort: 3 }, /\$\.reasoningEffort expected string/)
+})
+
+// ── the effort domain is DSH's own thinking-level vocabulary ───────────────
+
+/** Every thinking level DSH itself accepts in a provider profile's `reasoning`. */
+const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+
+/** The message Schemastery writes for one value outside a closed set. */
+function outsideLevels() {
+  return new RegExp(
+    `^\\$\\.reasoningEffort expected ${THINKING_LEVELS.map((level) => `"${level}"`).join(' \\| ')} but got `,
+  )
+}
+
+test('reasoningEffort accepts every level DSH itself offers, and nothing else', () => {
+  // The set is the Host's, not this plugin's: it is the enum of the pi-ai
+  // profile field the Host resolves a configured effort from. A value outside it
+  // could only ever reach the request path and be refused there, so the schema
+  // refuses it at activation instead, where the error carries a field path.
+  for (const level of THINKING_LEVELS) {
+    assert.deepEqual(accepted({ source: 'settings', reasoningEffort: level }), { source: 'settings', reasoningEffort: level })
+  }
+  for (const bad of ['hgh', 'HIGH', '', 'high ', 3]) {
+    const { issues } = validate({ source: 'settings', reasoningEffort: bad })
+    assert.notEqual(issues, undefined, `expected ${JSON.stringify(bad)} to be rejected`)
+    assert.match(issues.join('; '), outsideLevels())
+  }
 })
 
 test('defaultModel is a route object, not a "provider/model" string', () => {
