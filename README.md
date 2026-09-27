@@ -120,6 +120,9 @@ node --test
 | 显式指定其它路由 | `subagent` 显式指定一个不在授权集合内的路由 | 报错，写明该路由与授权集合 |
 | Lead 不受影响 | `node tools/read-session.mjs <lead 会话日志> request` | `request/header` 保持 Lead 自己的路由 |
 | 禁用 = 不改变 | 禁用该 bundle，然后带显式路由跑一次探测 | 子代理运行该显式路由：没有任何包装 |
+| Harness 升级后的投影契约（先看这一行） | 用 `Config.listConfigs` 查 `entry: include:subagent-pin` | `status: "schema"` 且 `limitations: []`；`provider` 带 `minLength: 1`，两条嵌套路由带 `required: [provider, model]`，`source` 带 `default: "settings"` |
+
+最后一行是升级 Harness 之后要先看的。`Config` 用的是本仓库自己那份 `@deepseek-ai/schemastery`（在 `package.json` 里精确锁死），运行时校验不经过 Host 自带的那份，所以**版本号不同本身不会让插件挂掉**。但 Host 新版的 `createConfigProjector` 是按一份跨版本契约读我们图的节点形状（`type`/`meta`/`dict`/`inner`/`list`），改了约定就在这里显形：`limitations` 非空即为投影退化，`status` 不再是 `schema` 即为新 Host 不接受这份图。真退化时把 `dependencies` 换成 Host 自带那份的版本（本环境是 `3.18.4`；它只存在于 asar 内：`/dsh/node_modules/@deepseek-ai/schemastery/package.json`），然后重跑单元测试和上面整张表。
 
 `tools/read-session.mjs` 从证据里读一份持久会话日志；它会切分日志中拼接的 zstd 帧 —— 单次解压会丢掉后面的帧。
 

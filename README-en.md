@@ -226,6 +226,20 @@ substitute your own. Session logs live at
 | Explicit route outside the set | `subagent` with an explicit provider/model outside the authorized set | error naming the route and the authorized set |
 | Lead unaffected | `node tools/read-session.mjs <lead session log> request` | `request/header` keeps the Lead's own route |
 | Disabled = unchanged | disable the bundle, then run a probe with an explicit route | the child runs that explicit route: nothing is wrapped |
+| Projection contract after a Harness upgrade (check this row first) | query `Config.listConfigs` with `entry: include:subagent-pin` | `status: "schema"` and `limitations: []`; `provider` carries `minLength: 1`, both nested routes carry `required: [provider, model]`, `source` carries `default: "settings"` |
+
+The last row is what to look at after upgrading the Harness. `Config` uses this
+repository's own `@deepseek-ai/schemastery` (pinned exactly in `package.json`),
+and validation never goes through the Harness copy, so **a version difference
+alone will not break the plugin**. But the new Host's `createConfigProjector`
+reads our graph's node shape (`type`/`meta`/`dict`/`inner`/`list`) under a
+cross-version contract, and a changed convention shows up right here: a
+non-empty `limitations` means the projection degraded, and a `status` other than
+`schema` means the new Host rejects the graph. If that happens, move
+`dependencies` to the version the Harness ships (in this environment `3.18.4`;
+it exists only inside the asar, at
+`/dsh/node_modules/@deepseek-ai/schemastery/package.json`) and re-run the unit
+tests plus the whole table above.
 
 `tools/read-session.mjs` reads a durable session log from evidence; it splits the
 log's concatenated zstd frames, which a single-shot decompress loses.
