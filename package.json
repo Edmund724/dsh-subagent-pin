@@ -27,6 +27,7 @@
     "README.md",
     "README-en.md",
     "CONTEXT.md",
+    "AGENTS.md",
     ".agents/notes/**",
     "locale/*.json",
     "icon.svg",

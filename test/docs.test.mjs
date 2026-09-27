@@ -26,6 +26,7 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import { Config, KNOWN_KEYS } from '../config-schema.js'
+import { codeSpanTokens, isPathShaped, numbered as documentLines, relativeLinks } from '../test-support/document-tokens.mjs'
 
 /** The repository root: every document read here sits beside `package.json`. */
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -46,11 +47,7 @@ const ROUTE_KEYS = Object.keys(Config.dict.defaultModel.dict)
 const read = (name) => readFileSync(join(ROOT, name), 'utf8')
 
 /** One repository file, line by line, with the line number each line is on. */
-function numbered(name) {
-  return read(name)
-    .split(/\r?\n/)
-    .map((text, offset) => ({ text, number: offset + 1 }))
-}
+const numbered = (name) => documentLines(ROOT, name)
 
 /** Drop comments from JavaScript source, keeping every line where it was. */
 function stripComments(source) {
@@ -176,16 +173,7 @@ test('every decision word route-policy.js writes is a word CONTEXT.md defines', 
 // ── A3: the links between the documents, and what the package ships ────────
 
 /** The relative link targets of one document, with the line each sits on. */
-function links(name) {
-  const found = []
-  for (const row of numbered(name)) {
-    for (const [, target] of row.text.matchAll(/\]\(\s*<?([^)\s>]+)>?/g)) {
-      if (target.startsWith('#') || /^[A-Za-z][A-Za-z0-9+.-]*:/.test(target)) continue
-      found.push({ target: target.split('#')[0], number: row.number })
-    }
-  }
-  return found
-}
+const links = (name) => relativeLinks(ROOT, name)
 
 /**
  * Whether one `files` entry of `package.json` ships a repository-relative path.
@@ -249,12 +237,10 @@ function shipsDirectory(entry, directory) {
  */
 function documentedPaths(name) {
   const paths = []
-  for (const row of numbered(name)) {
-    for (const [, token] of row.text.matchAll(/`([^`\n]+)`/g)) {
-      if (/[\s*:`<>]/u.test(token)) continue
-      if (!ROOT_ENTRIES.has(token.split('/')[0])) continue
-      paths.push({ token, number: row.number })
-    }
+  for (const { token, number } of codeSpanTokens(ROOT, name)) {
+    if (!isPathShaped(token)) continue
+    if (!ROOT_ENTRIES.has(token.split('/')[0])) continue
+    paths.push({ token, number })
   }
   return paths
 }

@@ -21,7 +21,7 @@
 | `README.md` / `README-en.md` | 人类手册（完整互译）：怎么用、为什么这么用 |
 | `CONTEXT.md` | 词表与判据：八个决定/原因词，以及划界规则 |
 | `.agents/notes/` | 决策记录（为什么这样做、为什么不做）；索引见 `.agents/notes/README.md` |
-| `test/` | 9 个 `node:test` 文件，不启动 Harness；逐文件拆分与总数见 `README.md`「已验证」 |
+| `test/` | `node:test` 文件，不启动 Harness；逐文件拆分与总数见 `README.md`「已验证」 |
 | `test-support/host-doubles.mjs` | 真实 Cordis 上的替身 |
 | `tools/read-session.mjs` | 内部证据读取器：切分拼接的 zstd 帧、按完整 type 选事件 |
 | `tools/verify-session.mjs` | `verify` 入口（`exports` 的 `./verify`） |
@@ -87,6 +87,10 @@ npm run verify -- --lead <会话日志>   # 现场核对：断言那一次运行
   - 两份 README 的 `## ` 章节数量与顺序一致。
 - 动了 `files` / `exports` 就同时跑 `test/package.test.mjs`（5 项）：它反向要求每个
   `files` 条目仍匹配仓库里的东西、每个可导入子路径都被 `files` 覆盖。
+- 改了本文件或 `.agents/notes/` 下的文档就跑 `test/maintainer-docs.test.mjs`（3 项）：
+  它把每条相对链接**从文档自己所在目录**解析（笔记索引指向各条记录用的就是这种），
+  再断言引用都仍然存在。它看不到的边界写在那个文件头部。
+- 本文件进 `files`：README 的散文点名了它，而文档守卫要求被点名的仓库路径随包。
 - 测试数量写在 `README.md`「已验证」那一句里；增删测试时同步它。
 - 现场核对的生产证据**无法自动化**：`verify` 验的是"那一次"运行，不是"现在"
   （理由见 `2026-09-27-现场核对的自动化边界.md`）。

@@ -206,10 +206,10 @@ tests run against the real Host libraries (`@deepseek-ai/cordis`,
 installs once with `npm install`. The live table additionally needs a running
 Harness with this plugin enabled.
 
-Unit tests — 113 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 27 ·
+Unit tests — 116 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 27 ·
 `host-contract` 15 · `docs` 5 · `read-session` 5 · `verify-session` 9 ·
-`package` 5 · `patch` 5), no Harness needed (verified on Node 25.8.0). From
-the repository root:
+`package` 5 · `patch` 5 · `maintainer-docs` 3), no Harness needed (verified on
+Node 25.8.0). From the repository root:
 
 ```powershell
 npm install
@@ -243,7 +243,12 @@ test/package.test.mjs` asserts that every `exports` subpath exists and is shippe
 by `files`; `node --test test/patch.test.mjs` reads the bundled patch through the
 Host's own API — `bundlePatchPaths()` resolves `dsh.bundle.patch`,
 `loadOverlayPatches()` parses it into one insert row — adding no YAML dependency
-of this repository's own. None of them goes through the plugin.)
+of this repository's own; `node --test test/maintainer-docs.test.mjs` is the
+maintainer-document guard — it reads `AGENTS.md` and every note under
+`.agents/notes/` as text and asserts that the relative links they carry (resolved
+from the directory their own document sits in, which is how the notes index
+reaches its entries) and the repository paths their prose writes by hand still
+exist. None of them goes through the plugin.)
 
 They cover the config interface (the native graph, the accepted and rejected
 domain, what an omitted field resolves to, and the gaps deliberately left to
@@ -271,7 +276,10 @@ entry still matching something in the tree. On the patch side they cover
 reading it as exactly one insert row, that row's id and package name, every key
 of its `config` being declared by the schema and validating, and the bundled
 config carrying nothing but `source: settings` (no `defaultModel`, no
-`reasoningEffort`).
+`reasoningEffort`). On the maintainer-document side they cover the relative links
+in `AGENTS.md` and every decision record — including the directory-relative links
+the notes index uses to reach its entries — the repository paths their prose
+writes by hand, and the decision records cited by bare file name.
 
 Live checks — manual, one tool call each, against a Harness with the plugin
 enabled. **Producing the evidence cannot be automated** (the logs only exist
