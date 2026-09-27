@@ -206,9 +206,9 @@ tests run against the real Host libraries (`@deepseek-ai/cordis`,
 installs once with `npm install`. The live table additionally needs a running
 Harness with this plugin enabled.
 
-Unit tests — 108 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 27 ·
+Unit tests — 113 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 27 ·
 `host-contract` 15 · `docs` 5 · `read-session` 5 · `verify-session` 9 ·
-`package` 5), no Harness needed (verified on Node 25.8.0). From
+`package` 5 · `patch` 5), no Harness needed (verified on Node 25.8.0). From
 the repository root:
 
 ```powershell
@@ -240,7 +240,10 @@ test/read-session.test.mjs` builds its own logs to exercise the evidence reader
 and untrimmed printing); `node --test test/verify-session.test.mjs` builds one
 run's two logs to exercise the `verify` command below; `node --test
 test/package.test.mjs` asserts that every `exports` subpath exists and is shipped
-by `files`. None of them goes through the plugin.)
+by `files`; `node --test test/patch.test.mjs` reads the bundled patch through the
+Host's own API — `bundlePatchPaths()` resolves `dsh.bundle.patch`,
+`loadOverlayPatches()` parses it into one insert row — adding no YAML dependency
+of this repository's own. None of them goes through the plugin.)
 
 They cover the config interface (the native graph, the accepted and rejected
 domain, what an omitted field resolves to, and the gaps deliberately left to
@@ -263,7 +266,12 @@ printing, `verify`'s route assertions over one run (including a missing child
 log, a descriptor disagreeing with its own header, and an expectation outside the
 frozen list), and `exports` agreeing with `files` plus the manifest `icon`
 existing, shipping, and drawing on the official 36×36 viewBox — every `files`
-entry still matching something in the tree.
+entry still matching something in the tree. On the patch side they cover
+`dsh.bundle.patch` resolving to the one file this repository keeps, the Host
+reading it as exactly one insert row, that row's id and package name, every key
+of its `config` being declared by the schema and validating, and the bundled
+config carrying nothing but `source: settings` (no `defaultModel`, no
+`reasoningEffort`).
 
 Live checks — manual, one tool call each, against a Harness with the plugin
 enabled. **Producing the evidence cannot be automated** (the logs only exist
