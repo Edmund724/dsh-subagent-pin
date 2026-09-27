@@ -21,6 +21,14 @@
 
 **不**被钉住、原样放行的一次委派。两个原因见「决定」。豁免仍然会用授权集合校验*显式*给出的路由。
 
+## 配置接口（config interface）
+
+一行 `config` 可写什么的唯一**机器可读**声明，由 `config-schema.js` 导出的原生 Schemastery 图给出。DSH 在激活前用它校验整行（报错自带字段路径），`Config.listConfigs` 可把它投影成 JSON Schema。
+
+分界线：**一个 schema 节点能表达的归 `config-schema.js`，表达不了的归 `plugin.js` 的 `resolveConfig()`。** Schemastery 会合并未知键、`union` 取第一个能过的分支、`z.array(...).min(1)` 在元素带默认值时被跳过，所以键闭包、模式互斥、`allowedModels` 非空与「必须含 pinned 路由」只能留在代码里。
+
+由此 `apply()` 的入参契约是**已经过 `Config` 校验的 config**（cordis 的 `resolveConfig` 负责这一步），默认值也由 `Config` 提供。
+
 ## 暂缓的词
 
 - **入口（origin）** —— 一次委派是新建的还是冷恢复的。冷恢复（`coldResume`）绕过被包住的两个方法，因此落在当前接缝的可见范围之外。这个词在它的策略定调之前不使用。

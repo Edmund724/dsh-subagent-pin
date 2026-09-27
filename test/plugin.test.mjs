@@ -1,9 +1,10 @@
 /**
  * Integration tests for the subagent-pin Host plugin.
  *
- * The policy itself lives in `route-policy.js` and is tested directly there. What
- * is tested here is what only this file can do: attaching the seam to
- * `ctx.subagents`, restoring it on disposal, validating the row's config, and
+ * The config shape lives in `config-schema.js` and is tested there; the policy
+ * lives in `route-policy.js` and is tested there. What is tested here is what
+ * only this file can do: attaching the seam to `ctx.subagents`, restoring it on
+ * disposal, closing the config gaps the schema leaves (`resolveConfig`), and
  * handing the Host's values — the Settings row, the provider registry — to the
  * policy and translating its decision back into a throw, a log line, or a call.
  *
@@ -14,7 +15,18 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { apply } from '../plugin.js'
+import { apply, Config } from '../plugin.js'
+
+/**
+ * Validate one raw config the way cordis does before `apply()` runs (`fiber.ts`
+ * `resolveConfig`), so these tests exercise the same two-stage pipeline the
+ * Host does: the schema settles the shape, the plugin settles the policy.
+ */
+function validated(config) {
+  const result = Config['~standard'].validate(config)
+  if (result.issues) throw new Error(result.issues.map((issue) => issue.message).join('; '))
+  return result.value
+}
 
 const PARENT = { id: 'parent-session' }
 
@@ -91,7 +103,7 @@ function fakeSettings(routes = [{ ...CHECKED }], enabled = true) {
 function mounted(config = PINNED_CONFIG, providers) {
   const subagents = fakeSubagents(providers)
   const ctx = fakeCtx(subagents)
-  apply(ctx, config)
+  apply(ctx, validated(config))
   return { ctx, subagents }
 }
 
@@ -99,7 +111,7 @@ function mountedSettings(routes, enabled) {
   const settings = fakeSettings(routes, enabled)
   const subagents = fakeSubagents()
   const ctx = fakeCtx(subagents, { subagentModelSelection: settings })
-  apply(ctx, SETTINGS_CONFIG)
+  apply(ctx, validated(SETTINGS_CONFIG))
   return { ctx, subagents, settings }
 }
 
@@ -141,10 +153,10 @@ test('a fresh delegation is pinned end-to-end from the Settings row', () => {
   assert.deepEqual(subagents.calls[0].request.agentOptions, { provider: 'opencodego', model: 'space-bunny-free' })
 })
 
-test('an omitted config means the default source', () => {
+test('an omitted row config takes the schema default source', () => {
   const subagents = fakeSubagents()
   const ctx = fakeCtx(subagents, { subagentModelSelection: fakeSettings() })
-  apply(ctx, undefined)
+  apply(ctx, validated(undefined))
 
   subagents.start('spawn', { parent: PARENT })
 
@@ -177,7 +189,7 @@ test('an exempt provider is left alone and reported once per activation', () => 
 test('settings mode fails loudly when the Settings row is absent from the Host', () => {
   const subagents = fakeSubagents()
   const ctx = fakeCtx(subagents)
-  apply(ctx, SETTINGS_CONFIG)
+  apply(ctx, validated(SETTINGS_CONFIG))
 
   assert.throws(() => subagents.start('spawn', { parent: PARENT }), /model-selection-settings is not composed/)
   assert.equal(subagents.calls.length, 0)
@@ -186,7 +198,7 @@ test('settings mode fails loudly when the Settings row is absent from the Host',
 test('settings mode fails loudly when the service exposes no current()', () => {
   const subagents = fakeSubagents()
   const ctx = fakeCtx(subagents, { subagentModelSelection: {} })
-  apply(ctx, SETTINGS_CONFIG)
+  apply(ctx, validated(SETTINGS_CONFIG))
 
   assert.throws(() => subagents.start('spawn', { parent: PARENT }), /model-selection-settings is not composed/)
 })
@@ -200,7 +212,7 @@ test('settings mode reports a rejected Settings list instead of pinning nothing'
       },
     },
   })
-  apply(ctx, SETTINGS_CONFIG)
+  apply(ctx, validated(SETTINGS_CONFIG))
 
   assert.throws(() => subagents.start('spawn', { parent: PARENT }), /rejected its own model list: subagent model selection repeats route/)
 })
@@ -237,7 +249,7 @@ test('disposal restores the original service methods', async () => {
   const originalStart = subagents.start
   const originalContinuable = subagents.startContinuable
   const ctx = fakeCtx(subagents)
-  apply(ctx, PINNED_CONFIG)
+  apply(ctx, validated(PINNED_CONFIG))
 
   assert.notEqual(subagents.start, originalStart)
   assert.notEqual(subagents.startContinuable, originalContinuable)
@@ -257,7 +269,7 @@ test('a prototype-shaped service is restored by dropping the own shadow', async 
   }
   const subagents = new FakeRuntime()
   const ctx = fakeCtx(subagents)
-  apply(ctx, PINNED_CONFIG)
+  apply(ctx, validated(PINNED_CONFIG))
 
   assert.equal(Object.hasOwn(subagents, 'start'), true)
   await ctx.disposeAll()
@@ -269,14 +281,14 @@ test('a prototype-shaped service is restored by dropping the own shadow', async 
 test('a service without the delegation seam fails at activation instead of pinning nothing', () => {
   const ctx = fakeCtx({ getProvider: () => undefined })
 
-  assert.throws(() => apply(ctx, PINNED_CONFIG), /has no start\(\) method/)
+  assert.throws(() => apply(ctx, validated(PINNED_CONFIG)), /has no start\(\) method/)
 })
 
 test('a frozen service instance fails at activation', () => {
   const subagents = Object.freeze(fakeSubagents())
   const ctx = fakeCtx(subagents)
 
-  assert.throws(() => apply(ctx, PINNED_CONFIG), /not extensible/)
+  assert.throws(() => apply(ctx, validated(PINNED_CONFIG)), /not extensible/)
 })
 
 test('a stale shadow from a previous activation is dropped before pinning again', async () => {
@@ -291,11 +303,11 @@ test('a stale shadow from a previous activation is dropped before pinning again'
   }
   const subagents = new FakeRuntime()
   const first = fakeCtx(subagents)
-  apply(first, PINNED_CONFIG)
+  apply(first, validated(PINNED_CONFIG))
   const firstWrapper = Object.getOwnPropertyDescriptor(subagents, 'start').value
   const second = fakeCtx(subagents)
 
-  apply(second, PINNED_CONFIG)
+  apply(second, validated(PINNED_CONFIG))
 
   const secondWrapper = Object.getOwnPropertyDescriptor(subagents, 'start').value
   assert.notEqual(secondWrapper, firstWrapper)
@@ -320,7 +332,7 @@ test('a context proxy that re-wraps every function read still restores on dispos
   const originalStart = raw.start
   const originalContinuable = raw.startContinuable
   const ctx = fakeCtx(tracing(raw))
-  apply(ctx, PINNED_CONFIG)
+  apply(ctx, validated(PINNED_CONFIG))
 
   assert.notEqual(Object.getOwnPropertyDescriptor(raw, 'start').value, originalStart)
   assert.equal(ctx.subagents.start('spawn', { parent: PARENT }).id, 'run-1')
@@ -347,7 +359,7 @@ test('a wrapper installed over ours is still removed on disposal', async () => {
   }
   const subagents = new FakeRuntime()
   const ctx = fakeCtx(subagents)
-  apply(ctx, PINNED_CONFIG)
+  apply(ctx, validated(PINNED_CONFIG))
   Object.defineProperty(subagents, 'start', { value: () => 'interloper', writable: true, configurable: true })
 
   await ctx.disposeAll()
@@ -366,7 +378,7 @@ test('settings mode is restored on disposal like the pinned mode', async () => {
   }
   const subagents = new FakeRuntime()
   const ctx = fakeCtx(subagents, { subagentModelSelection: fakeSettings() })
-  apply(ctx, SETTINGS_CONFIG)
+  apply(ctx, validated(SETTINGS_CONFIG))
 
   assert.equal(Object.hasOwn(subagents, 'start'), true)
   await ctx.disposeAll()
@@ -374,37 +386,45 @@ test('settings mode is restored on disposal like the pinned mode', async () => {
   assert.equal(subagents.start, FakeRuntime.prototype.start)
 })
 
-// ── the row's own config ───────────────────────────────────────────────────
+// ── the config gaps `config-schema.js` leaves to this file ──────────────────
 
-test('config problems fail at activation', () => {
-  assert.throws(() => apply(fakeCtx(fakeSubagents()), { source: 'pinned', model: 'space-bunny-free' }), /config.provider/)
-  assert.throws(() => apply(fakeCtx(fakeSubagents()), { source: 'pinned', provider: 'opencodego' }), /config.model/)
-  assert.throws(() => apply(fakeCtx(fakeSubagents()), { ...PINNED_CONFIG, extra: 1 }), /unknown config key "extra"/)
+test('the key set is closed here, because the schema merges unknown keys', () => {
+  assert.throws(() => apply(fakeCtx(fakeSubagents()), validated({ ...PINNED_CONFIG, extra: 1 })), /unknown config key "extra"/)
   assert.throws(
-    () => apply(fakeCtx(fakeSubagents()), { ...PINNED_CONFIG, allowedModels: [{ provider: 'other', model: 'other' }] }),
+    () => apply(fakeCtx(fakeSubagents()), validated({ source: 'settings', defaultModel: { ...CHECKED, extra: 1 } })),
+    /config.defaultModel has unknown key "extra"/,
+  )
+})
+
+test('pinned mode requires the route it cannot get from Settings', () => {
+  assert.throws(
+    () => apply(fakeCtx(fakeSubagents()), validated({ source: 'pinned', model: 'space-bunny-free' })),
+    /config.provider must be a non-empty string/,
+  )
+  assert.throws(
+    () => apply(fakeCtx(fakeSubagents()), validated({ source: 'pinned', provider: 'opencodego' })),
+    /config.model must be a non-empty string/,
+  )
+})
+
+test('pinned mode must allow the route it pins to', () => {
+  assert.throws(
+    () => apply(fakeCtx(fakeSubagents()), validated({ ...PINNED_CONFIG, allowedModels: [{ provider: 'other', model: 'other' }] })),
     /allowedModels must include the pinned route/,
   )
 })
 
-test('config.defaultModel is validated at activation', () => {
-  const ctx = () => fakeCtx(fakeSubagents(), { subagentModelSelection: fakeSettings() })
-  assert.throws(() => apply(ctx(), { source: 'settings', defaultModel: 'opencodego/space-bunny-free' }), /config.defaultModel must be an object/)
-  assert.throws(() => apply(ctx(), { source: 'settings', defaultModel: { provider: 'opencodego' } }), /config.defaultModel.model must be a non-empty string/)
-  assert.throws(() => apply(ctx(), { source: 'settings', defaultModel: { ...CHECKED, extra: 1 } }), /config.defaultModel has unknown key "extra"/)
-  assert.throws(() => apply(ctx(), { ...PINNED_CONFIG, defaultModel: { ...CHECKED } }), /config.defaultModel is redundant while config.source is "pinned"/)
-})
-
-test('settings mode config rejects a static route instead of hiding it', () => {
+test('settings mode rejects a static route instead of hiding it', () => {
   assert.throws(
-    () => apply(fakeCtx(fakeSubagents()), { source: 'settings', provider: 'opencodego', model: 'space-bunny-free' }),
+    () => apply(fakeCtx(fakeSubagents()), validated({ source: 'settings', provider: 'opencodego', model: 'space-bunny-free' })),
     /config.provider is fixed by the Settings row/,
   )
   assert.throws(
-    () => apply(fakeCtx(fakeSubagents()), { source: 'settings', allowedModels: [{ ...CHECKED }] }),
+    () => apply(fakeCtx(fakeSubagents()), validated({ source: 'settings', allowedModels: [{ ...CHECKED }] })),
     /config.allowedModels is fixed by the Settings row/,
   )
-})
-
-test('an unknown source fails at activation', () => {
-  assert.throws(() => apply(fakeCtx(fakeSubagents()), { source: 'dynamic' }), /config.source must be "settings" or "pinned"/)
+  assert.throws(
+    () => apply(fakeCtx(fakeSubagents()), validated({ ...PINNED_CONFIG, defaultModel: { ...CHECKED } })),
+    /config.defaultModel is redundant while config.source is "pinned"/,
+  )
 })

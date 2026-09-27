@@ -161,6 +161,14 @@ the shipped config no longer sets it: an omitted effort is resolved by DSH to th
 model's own default (for the pi-ai adapter, the provider profile's `reasoning`
 field), so the plugin no longer pins an effort.
 
+The field-level authority is the `Config` the plugin exports (declared in
+`config-schema.js`): DSH validates the whole `config` row against it before
+activation, with a field path in the message, and `Config.listConfigs` projects
+it into JSON Schema, so an author can query it before writing a config.
+Schemastery merges unknown keys and cannot express which keys may appear
+together, so the key closure and the mode rules above still run in `plugin.js`
+on top of the schema.
+
 ## Verified
 
 Every check below is stated so that it can be reproduced on another machine. The
@@ -171,18 +179,22 @@ Harness install directory:
 `<harness>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`.
 The live table additionally needs a running Harness with this plugin enabled.
 
-Unit tests — 53 tests, no Harness needed (verified on Node 25.8.0). From the
+Unit tests — 65 tests, no Harness needed (verified on Node 25.8.0). From the
 repository root:
 
 ```powershell
 node --test
 ```
 
-(`node --test test/route-policy.test.mjs` runs the policy half alone — it calls
+(`node --test test/config-schema.test.mjs` runs the config interface alone — it
+calls `config-schema.js` directly and needs no double; `node --test
+test/route-policy.test.mjs` runs the policy half alone — it calls
 `route-policy.js` directly and needs no double; `node --test
 test/plugin.test.mjs` runs the seam and composition half.)
 
-They cover both sources, the default route itself, an explicit route inside the
+They cover the config interface (the native graph, the accepted and rejected
+domain, what an omitted field resolves to, and the gaps deliberately left to
+`plugin.js`), both sources, the default route itself, an explicit route inside the
 authorized set passing through untouched, `defaultModel` overriding it and the
 error once it leaves the set, the per-delegation re-read of the Settings row,
 every unusable-Settings shape (0 models, disabled, absent, a list the row itself

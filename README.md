@@ -90,19 +90,21 @@ Fork 例外与进程外例外是刻意的：固定这两者花费大于收益，
 
 `settings` 模式下 `provider`、`model` 和 `allowedModels` 会在激活时被拒绝，因此过期的静态路由无法悄悄生效；`defaultModel` 只在 `settings` 模式有意义，`pinned` 模式下写它会被拒绝（固定路由本身就是默认项）。`pinned` 模式下 `allowedModels` 必须包含固定的那条路由。未知配置键是激活错误，而不是静默忽略。`reasoningEffort` 只在调用方自己没有指定 effort 时套用；随包配置已经不再设置它 —— 未指定时由 DSH 填该模型自己的默认强度（pi-ai 适配器取 provider 配置的 `reasoning` 字段），强度因此不再被本插件钉死。若你在没有该默认值的 Host 上仍想兜底，才需要在这里写。
 
+字段级的权威声明是插件导出的 `Config`（在 `config-schema.js` 里）：DSH 在激活前用它校验整行 `config`，报错自带字段路径；`Config.listConfigs` 可把它投影成 JSON Schema，写配置前先查它即可。Schemastery 会合并未知键、也无法表达「哪些键能同时出现」，所以键闭包与上面的模式规则仍由 `plugin.js` 在 schema 之上执行。
+
 ## 已验证
 
 下面每一项都写成可在另一台机器上复现的形式。只需要一个 Node.js（单元测试需 Node ≥ 20；`tools/read-session.mjs` 用到 `zlib.zstdDecompressSync`，需 Node ≥ 22.15）—— `PATH` 上若没有 `node`，用 Harness 自带的运行时（相对 Harness 安装目录）：`<Harness 安装目录>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`。现场核对另需一个已启用该插件的运行中 Harness。
 
-单元测试 —— 53 项，无需运行 Harness（在 Node 25.8.0 上验证）。在仓库根目录执行：
+单元测试 —— 65 项，无需运行 Harness（在 Node 25.8.0 上验证）。在仓库根目录执行：
 
 ```powershell
 node --test
 ```
 
-（`node --test test/route-policy.test.mjs` 只跑策略侧：它直接调用 `route-policy.js`，不需要任何替身；`node --test test/plugin.test.mjs` 只跑接缝与组合侧。）
+（`node --test test/config-schema.test.mjs` 只跑配置接口：它直接调用 `config-schema.js`，不需要任何替身；`node --test test/route-policy.test.mjs` 只跑策略侧：它直接调用 `route-policy.js`，同样不需要替身；`node --test test/plugin.test.mjs` 只跑接缝与组合侧。）
 
-覆盖内容：两种 source、默认路由本身、授权集合内的显式路由原样放行、`defaultModel` 覆盖与「它已不在授权集合内」的报错、每次委派重新读取 Settings 行，Settings 行的所有不可用形态（0 个模型、被禁用、不存在、该行自己就拒绝的清单）、两个例外、授权集合外报错、只警告一次的规则、两种还原形态、治愈上一次激活遗留的 shadow、装在我们的包装之上的包装，以及通过「每次函数读取都重新包装」的 proxy 卸载（正是这个形态打挂了第一版）。
+覆盖内容：配置接口（原生 schema 图、接受与拒绝的取值域、省略字段解析成什么、以及刻意留给 `plugin.js` 的空档）、两种 source、默认路由本身、授权集合内的显式路由原样放行、`defaultModel` 覆盖与「它已不在授权集合内」的报错、每次委派重新读取 Settings 行，Settings 行的所有不可用形态（0 个模型、被禁用、不存在、该行自己就拒绝的清单）、两个例外、授权集合外报错、只警告一次的规则、两种还原形态、治愈上一次激活遗留的 shadow、装在我们的包装之上的包装，以及通过「每次函数读取都重新包装」的 proxy 卸载（正是这个形态打挂了第一版）。
 
 现场核对 —— 人工执行，每项一次工具调用，需要在已启用该插件的 Harness 上做。`<默认模型>` 指当前授权集合的默认项（配置了 `defaultModel` 就是它，否则是列表第一个）；此处用作示例的路由（`opencodego`、`deepseek-v4.1-flash`）是本环境的，请替换为你自己的。会话日志位于 `$DSH_HOME/sessions/<项目目录名>/<会话 id>/session.v4.jsonl.zstd`（`$DSH_HOME` 默认是 `~/.dsh`，Windows 上是 `%USERPROFILE%\.dsh`）。
 

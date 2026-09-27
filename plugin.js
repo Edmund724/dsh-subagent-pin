@@ -9,11 +9,14 @@
  * path shares: `ctx.subagents.start()` and `startContinuable()`, before the
  * provider resolves child options.
  *
- * This file owns the seam and the row's config. *Which* route a delegation gets,
- * and every way that answer fails, is `route-policy.js` — a module with no Host
- * dependency, so the policy is reachable without mounting the plugin. Here the
- * policy is only wired up: read the Settings row, hand the values in, throw a
- * rejection, log a notice, and call the original method.
+ * This file owns the seam and the config *policy*. The accepted shape of a
+ * config row is `config-schema.js` — a native Schemastery graph the platform
+ * projects and validates without reading this file — and *which* route a
+ * delegation gets, plus every way that answer fails, is `route-policy.js`, a
+ * module with no Host dependency. Here the rest is wired up: close the key set
+ * and the mode rules a single-node schema cannot express, read the Settings row,
+ * hand the values in, throw a rejection, log a notice, and call the original
+ * method.
  *
  * The policy itself is documented in `README.md`; the domain words are in
  * `CONTEXT.md`.
@@ -41,15 +44,16 @@
  */
 
 import { PREFIX, decideDelegation, renderRoutes, resolveAuthorization } from './route-policy.js'
+import { Config, KNOWN_KEYS } from './config-schema.js'
+
+/** The row's config interface: what DSH projects for `Config.listConfigs` and validates before `apply()`. */
+export { Config }
 
 /** Wait for the delegation service instead of failing on a Host composition without it. */
 export const inject = ['subagents']
 
 /** The delegated methods every delegation path shares. */
 const METHODS = ['start', 'startContinuable']
-
-/** Config keys this row understands. */
-const KNOWN_KEYS = ['source', 'provider', 'model', 'reasoningEffort', 'allowedModels', 'defaultModel']
 
 /** Raise one activation-visible configuration or seam failure. */
 function fail(message) {
@@ -62,42 +66,48 @@ function reason(error) {
   return message.startsWith(PREFIX) ? message.slice(PREFIX.length) : message
 }
 
-/** Read one required non-empty string config field. */
+/**
+ * Read one required non-empty string config field.
+ *
+ * `Config` rejects an empty string already. What it cannot state is *presence*
+ * under a condition — `provider` must be present in `pinned` mode and absent in
+ * `settings` mode — so the check stays here, and keeps `apply()` total when it
+ * is called with a config that never went through the schema.
+ */
 function requiredText(value, field) {
   if (typeof value !== 'string' || value.length === 0) fail(`config.${field} must be a non-empty string`)
   return value
 }
 
-/** Read one optional non-empty string config field. */
-function optionalText(value, field) {
-  if (value === undefined) return undefined
-  return requiredText(value, field)
-}
-
-/** Read one exact `{ provider, model }` route from config. */
+/** Read one route entry: reject its unknown keys, which `Config`'s shape cannot. */
 function routeEntry(value, field) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) fail(`${field} must be an object`)
   for (const key of Object.keys(value)) if (key !== 'provider' && key !== 'model') fail(`${field} has unknown key "${key}"`)
-  return {
-    provider: requiredText(value.provider, `${field}.provider`),
-    model: requiredText(value.model, `${field}.model`),
-  }
+  return { provider: value.provider, model: value.model }
 }
 
-/** Read one route list from config. */
+/** Read one route list from config: `Config` owns each entry's shape, this owns the non-empty rule. */
 function routeList(value) {
   if (!Array.isArray(value) || value.length === 0) fail('config.allowedModels must be a non-empty list of { provider, model }')
   return value.map((entry, index) => routeEntry(entry, `config.allowedModels[${index}]`))
 }
 
-/** Validate the row's config; an unknown key is a typo, never a silent no-op. */
+/**
+ * Read the row's config as the policy needs it.
+ *
+ * `Config` has already rejected a bad shape at activation, so this closes only
+ * the gaps of a single-node schema: the key set (Schemastery merges unknown
+ * keys) and the rules that depend on more than one field — which keys each mode
+ * allows, and that `allowedModels` is non-empty and contains the pinned route.
+ *
+ * @param config - The row's config, validated against `Config`.
+ * @returns The policy's view: `{ source, ... }`.
+ */
 function resolveConfig(config) {
   const record = config ?? {}
-  if (record === null || typeof record !== 'object' || Array.isArray(record)) fail('config must be an object')
   for (const key of Object.keys(record)) if (!KNOWN_KEYS.includes(key)) fail(`unknown config key "${key}" (known: ${KNOWN_KEYS.join(', ')})`)
-  const source = record.source === undefined ? 'settings' : record.source
-  if (source !== 'settings' && source !== 'pinned') fail(`config.source must be "settings" or "pinned" (got ${JSON.stringify(record.source)})`)
-  const reasoningEffort = optionalText(record.reasoningEffort, 'reasoningEffort')
+  const source = record.source
+  const reasoningEffort = record.reasoningEffort
   if (source === 'settings') {
     for (const key of ['provider', 'model', 'allowedModels']) {
       if (record[key] !== undefined) fail(`config.${key} is fixed by the Settings row while config.source is "settings"; remove it or set config.source to "pinned"`)
@@ -179,7 +189,7 @@ function dropOwnShadows(subagents) {
  * names an authorized route is left exactly as requested; anything else fails.
  *
  * @param ctx - Host context; `subagents` must be available.
- * @param config - `{ source?, provider?, model?, reasoningEffort?, allowedModels?, defaultModel? }`.
+ * @param config - The row's config, already validated against `Config`.
  */
 export function apply(ctx, config) {
   const pinConfig = resolveConfig(config)
