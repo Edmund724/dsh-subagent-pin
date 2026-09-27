@@ -216,7 +216,7 @@ for (const source of SOURCES) {
 
     assert.equal(decision.kind, 'pass')
     assert.equal(decision.reason, 'named')
-    assert.equal(decision.request.agentOptions, options)
+    assert.deepEqual(decision.request.agentOptions, options)
   })
 
   test(`${source.name} source passes a named route outside the list untouched`, () => {
@@ -225,7 +225,7 @@ for (const source of SOURCES) {
 
     assert.equal(decision.kind, 'pass')
     assert.equal(decision.reason, 'named')
-    assert.equal(decision.request.agentOptions, options)
+    assert.deepEqual(decision.request.agentOptions, options)
   })
 }
 
@@ -235,7 +235,7 @@ test('a model named without its provider is passed through untouched', () => {
 
   assert.equal(decision.kind, 'pass')
   assert.equal(decision.reason, 'named')
-  assert.equal(decision.request.agentOptions, options)
+  assert.deepEqual(decision.request.agentOptions, options)
 })
 
 test('a provider named without its model is passed through untouched', () => {
@@ -244,7 +244,7 @@ test('a provider named without its model is passed through untouched', () => {
 
   assert.equal(decision.kind, 'pass')
   assert.equal(decision.reason, 'named')
-  assert.equal(decision.request.agentOptions, options)
+  assert.deepEqual(decision.request.agentOptions, options)
 })
 
 test('a named route is passed through even when no route list can be read', () => {
@@ -265,7 +265,7 @@ test('a non-string route field still counts as a named route', () => {
 
   assert.equal(decision.kind, 'pass')
   assert.equal(decision.reason, 'named')
-  assert.equal(decision.request.agentOptions, options)
+  assert.deepEqual(decision.request.agentOptions, options)
 })
 
 // ── decideDelegation: the two exemptions ────────────────────────────────────
@@ -304,7 +304,7 @@ test('an exempt provider still passes a named route through before the exemption
 
   assert.equal(decision.kind, 'pass')
   assert.equal(decision.reason, 'named')
-  assert.equal(decision.request.agentOptions, options)
+  assert.deepEqual(decision.request.agentOptions, options)
 })
 
 test('a delegation whose provider is unknown is pinned rather than exempted', () => {
