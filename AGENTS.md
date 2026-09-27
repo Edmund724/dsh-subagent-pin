@@ -101,11 +101,10 @@ npm run verify -- --lead <会话日志>   # 现场核对：断言那一次运行
   （理由见 `2026-09-27-现场核对的自动化边界.md`）。
 - 动了 `host-contract.js` 或升级 Harness 后，先跑 `test/host-contract.test.mjs`
   （对着锁死的 Host 库断言），再按 `README.md`「已验证」表现场核对。
-- 两条链**只有人工同步**，没有任何测试会因它们落后而变红：
-  - 改了 `host-contract.js` 的形状假设清单（增删一项、改 level）→ 两份 README
-    「已验证」的最后一行与它下面两段讲的就是这份清单、锁死的三个包版本，以及
-    `config-schema.js` 的 `THINKING_LEVELS` 那处耦合；
-  - 改了 `cordis.patch.yml` 或 `package.json` 的 `dsh.bundle.patch` → 两份 README
-    「配置」段的两段示例要跟着改：`test/patch.test.mjs` 只钉随包配置本身，
-    `test/docs.test.mjs` 只钉 README 里出现的**键**被 schema 声明，示例的**取值**
-    没人管。
+- 只有一条链**纯靠人工同步**，没有任何测试会因它落后而变红：改了
+  `host-contract.js` 的形状假设清单（增删一项、改 level）→ 两份 README「已验证」
+  里讲这份清单、锁死的三个包版本与 `config-schema.js` 的 `THINKING_LEVELS` 耦合的
+  部分要跟着改。随包配置那一条已有守卫：`test/patch.test.mjs` 钉死
+  `cordis.patch.yml` 的键与取值，`test/docs.test.mjs` 钉 README 示例写出的每个键
+  都被 schema 声明；没人管的只剩示例键的**覆盖面**（schema 增键而示例没写不变红，
+  守卫是单向的）与示例里的注释措辞。
