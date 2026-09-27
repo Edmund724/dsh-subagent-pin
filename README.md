@@ -94,11 +94,12 @@ Fork 例外与进程外例外是刻意的：固定这两者花费大于收益，
 
 ## 已验证
 
-下面每一项都写成可在另一台机器上复现的形式。只需要一个 Node.js（单元测试需 Node ≥ 20；`tools/read-session.mjs` 用到 `zlib.zstdDecompressSync`，需 Node ≥ 22.15）—— `PATH` 上若没有 `node`，用 Harness 自带的运行时（相对 Harness 安装目录）：`<Harness 安装目录>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`。现场核对另需一个已启用该插件的运行中 Harness。
+下面每一项都写成可在另一台机器上复现的形式。只需要一个 Node.js（单元测试需 Node ≥ 20；`tools/read-session.mjs` 用到 `zlib.zstdDecompressSync`，需 Node ≥ 22.15）—— `PATH` 上若没有 `node`，用 Harness 自带的运行时（相对 Harness 安装目录）：`<Harness 安装目录>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`。另外，插件运行时要 `@deepseek-ai/schemastery`，全新克隆先装一次依赖（版本与 Host 自带的那份一致，`package.json` 里锁死）：`npm install`。现场核对另需一个已启用该插件的运行中 Harness。
 
 单元测试 —— 65 项，无需运行 Harness（在 Node 25.8.0 上验证）。在仓库根目录执行：
 
 ```powershell
+npm install
 node --test
 ```
 

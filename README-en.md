@@ -177,12 +177,16 @@ only prerequisite is one Node.js (unit tests: Node ≥ 20;
 `node` is not on `PATH`, use the runtime the Harness ships with, relative to the
 Harness install directory:
 `<harness>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`.
-The live table additionally needs a running Harness with this plugin enabled.
+The plugin also needs `@deepseek-ai/schemastery` at runtime, so a fresh clone
+installs once (`npm install`; the version is pinned in `package.json` to the one
+the Harness ships with). The live table additionally needs a running Harness
+with this plugin enabled.
 
 Unit tests — 65 tests, no Harness needed (verified on Node 25.8.0). From the
 repository root:
 
 ```powershell
+npm install
 node --test
 ```
 
