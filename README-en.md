@@ -115,6 +115,7 @@ hatch for a Host without that row.
 | A delegation that names no route, with a configured `defaultModel` outside the current list | **Throws**, naming the fix |
 | A delegation that names no route, on a fork-class provider (`inheritsParentContext`) | Left on the inherited route, so the reused conversation prefix stays cacheable |
 | A delegation that names no route, on a provider without the `agentOptions` capability (out-of-process `codex`/`claude-code`) | Left to that provider, reported once as a warning |
+| An already existing child (cold resume / follow-up) | Keeps the route written into `subagent/descriptor` at creation — the plugin neither re-checks nor rewrites it, and unchecking a model does **not** revoke it |
 
 **The list decides a default; it is not a licence.** A delegation that names a
 route belongs to its caller: it is passed through before the list is ever
@@ -122,7 +123,9 @@ consulted, including when the Settings row cannot be read at all. DSH's own
 `subagent` tool still rejects a model-named out-of-list route once, against the
 list **frozen into that session** — that is tool-layer policy, which this plugin
 cannot lift and should not; callers that bypass the tools, such as workflow
-`agent()`, are entirely on their own.
+`agent()`, are entirely on their own. An already existing child is not a
+delegation at all: its route was frozen into the descriptor at creation (see
+`CONTEXT.md`, 入口).
 
 Both exceptions (fork and out-of-process) apply only to a delegation that names
 no route: pinning either would spend more than it saves, and neither can be

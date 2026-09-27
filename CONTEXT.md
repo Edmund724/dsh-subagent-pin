@@ -31,6 +31,11 @@
 
 由此 `apply()` 的入参契约是**已经过 `Config` 校验的 config**（cordis 的 `resolveConfig` 负责这一步），默认值也由 `Config` 提供。
 
-## 暂缓的词
+## 入口（origin）
 
-- **入口（origin）** —— 一次委派是新建的还是冷恢复的。冷恢复（`coldResume`）绕过被包住的两个方法，因此落在当前接缝的可见范围之外。这个词在它的策略定调之前不使用。
+一次委派是**新建**的，还是**冷恢复**的（子会话已不驻留内存，`deliverFollowup` 走 `coldResume`）：
+
+- **新建** —— 必经被包住的两个方法（`start` / `startContinuable`），策略在这里求值一次，算出的路由写进子会话的 `subagent/descriptor`。
+- **冷恢复** —— 只从 descriptor 重建 provider / model / effort，不经过被包住的两个方法（`coldResume` 不读任何设置）。**插件在这条路径上不产生任何行为。**
+
+由此定调：**清单只在新建委派时求值一次，路由随该 child 冻结在 descriptor 里。** 在 Settings 里取消勾选某个模型**不会**撤销已经存在的 child；插件启用之前创建的、或本来就跑在父路由上的 child，冷恢复时仍然以父路由继续 —— 它从未进过清单。两个后果都是刻意的，写在这里而不是留在 README 的旁白里。要「撤销」或「迁移」既有 child，得先让 DSH 支持续跑携带路由覆盖，那不是本插件能做的事。
