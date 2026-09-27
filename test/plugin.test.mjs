@@ -137,6 +137,31 @@ test('an exempt provider is left alone and reported once per activation', () => 
   assert.equal(doubles.logs.filter((entry) => entry.level === 'warn' && entry.message.includes('codex')).length, 1)
 })
 
+// The Host reads `capabilities.agentOptions` only inside `start()`; the
+// continuable path never reads it (the seam note's (a)-4). Both exemptions are
+// therefore this plugin's own reading of the provider record, and the two
+// wrapped methods are pinned to apply it identically.
+test('a continuable delegation to an out-of-process provider is exempt through the same seam', async () => {
+  const doubles = mounted()
+
+  await doubles.ctx.subagents.startContinuable({ provider: 'codex', label: 'task', request: { parent: PARENT } })
+  await doubles.ctx.subagents.startContinuable({ provider: 'codex', label: 'task', request: { parent: PARENT } })
+
+  assert.equal(doubles.calls[0].spec.request.agentOptions, undefined)
+  assert.equal(doubles.logs.filter((entry) => entry.level === 'warn' && entry.message.includes('codex')).length, 1)
+})
+
+test('a continuable delegation to a fork-class provider keeps the inherited route', async () => {
+  const doubles = mounted(PINNED_CONFIG, {
+    providers: [{ name: 'fork', capabilities: { agentOptions: true }, inheritsParentContext: true }],
+  })
+
+  await doubles.ctx.subagents.startContinuable({ provider: 'fork', label: 'task', request: { parent: PARENT } })
+
+  assert.equal(doubles.calls[0].spec.request.agentOptions, undefined)
+  assert.equal(doubles.logs.filter((entry) => entry.level === 'info' && entry.message.includes('inherits the parent conversation')).length, 1)
+})
+
 test('a provider record the policy cannot read is reported and the delegation is pinned as usual', () => {
   const doubles = mounted(PINNED_CONFIG, { providers: [{ name: 'spawn', inheritsParentContext: false }] })
 

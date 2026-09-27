@@ -92,7 +92,7 @@ Settings 的那一行是**清单**：它的存在只是为了让面向模型的 
 
 下面每一项都写成可在另一台机器上复现的形式。只需要一个 Node.js（**本仓库的测试与工具都需 Node ≥ 22.15**：`tools/read-session.mjs` 用 `zlib.zstdDecompressSync`，测试用 `zlib.zstdCompressSync` 造帧；`package.json` 的 `engines` 写的就是这个下限。插件**运行时**不加载本仓库的 Node —— 它跑在 Harness 自带的运行时上）—— `PATH` 上若没有 `node`，用 Harness 自带的运行时（相对 Harness 安装目录）：`<Harness 安装目录>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`。另外，插件运行时要 `@deepseek-ai/schemastery`，契约测试要对真实的 Host 库跑（`@deepseek-ai/cordis`、`@deepseek-ai/dsh-app-boot`），三者都按版本号精确锁在 `package.json` 里（只给测试用，运行时不加载），全新克隆先装一次依赖：`npm install`。现场核对另需一个已启用该插件的运行中 Harness。
 
-单元测试 —— 126 项（`config-schema` 10 · `route-policy` 32 · `plugin` 27 · `host-contract` 17 · `docs` 12 · `read-session` 5 · `verify-session` 9 · `package` 5 · `patch` 5 · `maintainer-docs` 3 · `tarball` 1），无需运行 Harness（在 Node 25.8.0 上验证）。在仓库根目录执行：
+单元测试 —— 128 项（`config-schema` 10 · `route-policy` 32 · `plugin` 29 · `host-contract` 17 · `docs` 12 · `read-session` 5 · `verify-session` 9 · `package` 5 · `patch` 5 · `maintainer-docs` 3 · `tarball` 1），无需运行 Harness（在 Node 25.8.0 上验证）。在仓库根目录执行：
 
 ```powershell
 npm install

@@ -206,7 +206,7 @@ tests run against the real Host libraries (`@deepseek-ai/cordis`,
 installs once with `npm install`. The live table additionally needs a running
 Harness with this plugin enabled.
 
-Unit tests — 126 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 27 ·
+Unit tests — 128 tests (`config-schema` 10 · `route-policy` 32 · `plugin` 29 ·
 `host-contract` 17 · `docs` 12 · `read-session` 5 · `verify-session` 9 ·
 `package` 5 · `patch` 5 · `maintainer-docs` 3 · `tarball` 1), no Harness needed
 (verified on Node 25.8.0). From the repository root:
