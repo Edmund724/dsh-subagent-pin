@@ -74,9 +74,14 @@ activation and disposal work on shadows:
   properties, puts the captured property back), so **disabling the plugin always
   returns the service to its unwrapped shape**.
 
-If the seam is missing (no `start`, or a non-extensible instance) activation
-fails loudly and the row shows as failed instead of silently leaving children on
-the parent route.
+Every Host shape the seam needs is declared once in `host-contract.js` and checked
+once at activation: a missing seam (no `start`, a non-extensible instance, a
+`defineProperty`/`delete` that never reaches the instance) fails activation and
+the row shows as failed instead of silently leaving children on the parent route,
+while a capability downgrade (`getProvider` absent, a provider record missing a
+field) only logs one warning naming what it costs — the promise that matters, a
+route-unspecified delegation never keeping the inherited route, still holds. The
+domain words are in `CONTEXT.md` under "Host contract".
 
 ## Model source
 
@@ -186,12 +191,15 @@ only prerequisite is one Node.js (unit tests: Node ≥ 20;
 `node` is not on `PATH`, use the runtime the Harness ships with, relative to the
 Harness install directory:
 `<harness>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`.
-The plugin also needs `@deepseek-ai/schemastery` at runtime, so a fresh clone
-installs once (`npm install`; the version is pinned in `package.json` to the one
-the Harness ships with). The live table additionally needs a running Harness
-with this plugin enabled.
+The plugin also needs `@deepseek-ai/schemastery` at runtime, and the contract
+tests run against the real Host libraries (`@deepseek-ai/cordis`,
+`@deepseek-ai/dsh-app-boot`); all three are pinned by exact version in
+`package.json` (test-only — nothing loads them at runtime), so a fresh clone
+installs once with `npm install`. The live table additionally needs a running
+Harness with this plugin enabled.
 
-Unit tests — 63 tests, no Harness needed (verified on Node 25.8.0). From the
+Unit tests — 83 tests (`config-schema` 9 · `route-policy` 32 · `plugin` 27 ·
+`host-contract` 15), no Harness needed (verified on Node 25.8.0). From the
 repository root:
 
 ```powershell
@@ -203,7 +211,10 @@ node --test
 calls `config-schema.js` directly and needs no double; `node --test
 test/route-policy.test.mjs` runs the policy half alone — it calls
 `route-policy.js` directly and needs no double; `node --test
-test/plugin.test.mjs` runs the seam and composition half.)
+test/plugin.test.mjs` runs the seam and composition half on real Cordis doubles
+(`test-support/host-doubles.mjs`); `node --test test/host-contract.test.mjs` runs
+the Host contract alone — it asserts the proxy, the effect, Schemastery and the
+projection against the pinned libraries, without the plugin.)
 
 They cover the config interface (the native graph, the accepted and rejected
 domain, what an omitted field resolves to, and the gaps deliberately left to
@@ -214,7 +225,13 @@ per-delegation re-read of the Settings row, every unusable-Settings shape
 (0 models, disabled, absent, a list the row itself rejects), both exceptions, the
 single-warning rule, both restoration shapes, healing of a shadow a previous
 activation left, a wrapper installed over ours, and disposal through a proxy that
-re-wraps every function read (the shape that broke the first version).
+re-wraps every function read (the shape that broke the first version), plus the
+Host contract itself: the proxy's three traps and its fresh wrapper per read,
+`defineProperty`/`delete` reaching the instance, `ctx.effect` running its callback
+immediately and registering the returned disposer, the four Schemastery
+behaviours, the Host's `isNativeConfigSchema` and `createConfigProjector` reading
+our `Config`, and the activation self-check (a redirected write refuses
+activation, an unreadable provider record warns by name).
 
 Live checks — manual, one tool call each, against a Harness with the plugin
 enabled. `<default model>` means the list's default entry (`defaultModel` when
@@ -235,7 +252,7 @@ own. Session logs live at
 | Named route outside the list | workflow `agent()` naming a route outside the list (the `subagent` tool path is rejected by DSH itself first, so it cannot show this plugin) | the child **runs that route unchanged**; the plugin does not throw |
 | Lead unaffected | `node tools/read-session.mjs <lead session log> request` | `request/header` keeps the Lead's own route |
 | Disabled = unchanged | disable the bundle, then run a probe with an explicit route | the child runs that explicit route: nothing is wrapped |
-| Projection contract after a Harness upgrade (check this row first) | query `Config.listConfigs` with `entry: include:subagent-pin` | `status: "schema"` and `limitations: []`; `provider` carries `minLength: 1`, the nested `defaultModel` carries `required: [provider, model]`, `source` carries `default: "settings"` |
+| Projection contract after a Harness upgrade (check this row first) | query `Config.listConfigs` with `entry: include:subagent-pin` (the offline part of this row is asserted in `test/host-contract.test.mjs` against the pinned library; `status` is only observable on the running Host) | `status: "schema"` and `limitations: []`; `provider` carries `minLength: 1`, the nested `defaultModel` carries `required: [provider, model]`, `source` carries `default: "settings"` |
 
 The last row is what to look at after upgrading the Harness. `Config` uses this
 repository's own `@deepseek-ai/schemastery` (pinned exactly in `package.json`),
@@ -244,11 +261,19 @@ alone will not break the plugin**. But the new Host's `createConfigProjector`
 reads our graph's node shape (`type`/`meta`/`dict`/`inner`/`list`) under a
 cross-version contract, and a changed convention shows up right here: a
 non-empty `limitations` means the projection degraded, and a `status` other than
-`schema` means the new Host rejects the graph. If that happens, move
-`dependencies` to the version the Harness ships (in this environment `3.18.4`;
-it exists only inside the asar, at
-`/dsh/node_modules/@deepseek-ai/schemastery/package.json`) and re-run the unit
-tests plus the whole table above.
+`schema` means the new Host rejects the graph.
+
+The contract tests work the same way, only earlier: `test/host-contract.test.mjs`
+runs against **three pinned packages** — `@deepseek-ai/schemastery`,
+`@deepseek-ai/cordis`, `@deepseek-ai/dsh-app-boot`. They must be the versions the
+Harness ships, or the suite tests a different Host. Read the shipped versions
+from `/dsh/node_modules/@deepseek-ai/*/package.json` inside the asar (in this
+environment: `schemastery` 3.18.4, `cordis` 4.0.4, `dsh-app-boot` 0.1.7-rc.2).
+Two cautions: **`npm view <package> version` lies** — it prints the `latest` tag,
+and this environment's `dsh-app-boot` is `0.1.0-rc.6`, older than the shipped
+`0.1.7-rc.2`, so `devDependencies` must carry exact versions, never ranges; and on
+a Harness upgrade, reconcile all three versions, re-run the unit tests, then run
+the whole table above.
 
 `tools/read-session.mjs` reads a durable session log from evidence; it splits the
 log's concatenated zstd frames, which a single-shot decompress loses.

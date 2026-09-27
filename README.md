@@ -30,7 +30,7 @@ DSH 里「子代理模型」那一行 Settings 是**权限清单 + 发现工具*
 - 激活时会先删掉上一次激活遗留的 shadow 并记录一条警告，因此崩溃或被替换的上一代不会叠加包装；
 - 卸载时删掉自己的 shadow（若该服务的方法是 own property，则写回捕获到的属性），所以**禁用插件总能把服务还原成未包装的形态**。
 
-如果接缝不存在（没有 `start`，或实例不可扩展），激活会显式失败，该行状态变成 failed，而不是悄悄把子代理留在父路由上。
+接缝依赖的每一项 Host 形状都在 `host-contract.js` 里声明一次、激活时检查一次：接缝不存在（没有 `start`、实例不可扩展、`defineProperty`/`delete` 落不到实例上）会显式失败，该行状态变成 failed，而不是悄悄把子代理留在父路由上；能力类退化（`getProvider` 缺席、provider 记录缺字段）只记一条点名的警告，因为「未指定路由的委派绝不留继承」在那种情况下仍然成立。词表见 `CONTEXT.md` 的「Host 契约」。
 
 ## 模型来源
 
@@ -93,18 +93,18 @@ Settings 的那一行是**清单**：它的存在只是为了让面向模型的 
 
 ## 已验证
 
-下面每一项都写成可在另一台机器上复现的形式。只需要一个 Node.js（单元测试需 Node ≥ 20；`tools/read-session.mjs` 用到 `zlib.zstdDecompressSync`，需 Node ≥ 22.15）—— `PATH` 上若没有 `node`，用 Harness 自带的运行时（相对 Harness 安装目录）：`<Harness 安装目录>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`。另外，插件运行时要 `@deepseek-ai/schemastery`，全新克隆先装一次依赖（版本与 Host 自带的那份一致，`package.json` 里锁死）：`npm install`。现场核对另需一个已启用该插件的运行中 Harness。
+下面每一项都写成可在另一台机器上复现的形式。只需要一个 Node.js（单元测试需 Node ≥ 20；`tools/read-session.mjs` 用到 `zlib.zstdDecompressSync`，需 Node ≥ 22.15）—— `PATH` 上若没有 `node`，用 Harness 自带的运行时（相对 Harness 安装目录）：`<Harness 安装目录>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`。另外，插件运行时要 `@deepseek-ai/schemastery`，契约测试要对真实的 Host 库跑（`@deepseek-ai/cordis`、`@deepseek-ai/dsh-app-boot`），三者都按版本号精确锁在 `package.json` 里（只给测试用，运行时不加载），全新克隆先装一次依赖：`npm install`。现场核对另需一个已启用该插件的运行中 Harness。
 
-单元测试 —— 63 项，无需运行 Harness（在 Node 25.8.0 上验证）。在仓库根目录执行：
+单元测试 —— 83 项（`config-schema` 9 · `route-policy` 32 · `plugin` 27 · `host-contract` 15），无需运行 Harness（在 Node 25.8.0 上验证）。在仓库根目录执行：
 
 ```powershell
 npm install
 node --test
 ```
 
-（`node --test test/config-schema.test.mjs` 只跑配置接口：它直接调用 `config-schema.js`，不需要任何替身；`node --test test/route-policy.test.mjs` 只跑策略侧：它直接调用 `route-policy.js`，同样不需要替身；`node --test test/plugin.test.mjs` 只跑接缝与组合侧。）
+（`node --test test/config-schema.test.mjs` 只跑配置接口：直接调用 `config-schema.js`，不需要任何替身；`node --test test/route-policy.test.mjs` 只跑策略侧：直接调用 `route-policy.js`，同样不需要替身；`node --test test/plugin.test.mjs` 只跑接缝与组合侧，用的是真实 Cordis 上的替身（`test-support/host-doubles.mjs`）；`node --test test/host-contract.test.mjs` 只跑 Host 契约：对着下面锁死的库断言代理、effect、Schemastery 与投影，不经过插件。）
 
-覆盖内容：配置接口（原生 schema 图、接受与拒绝的取值域、省略字段解析成什么、以及刻意留给 `plugin.js` 的空档）、两种 source、默认路由本身、指定了路由的请求原样放行（含只给一半路由、非字符串值、以及清单读不出来时）、`defaultModel` 覆盖与「它已不在清单内」的报错、每次委派重新读取 Settings 行，Settings 行的所有不可用形态（0 个模型、被禁用、不存在、该行自己就拒绝的清单）、两个例外、只警告一次的规则、两种还原形态、治愈上一次激活遗留的 shadow、装在我们的包装之上的包装，以及通过「每次函数读取都重新包装」的 proxy 卸载（正是这个形态打挂了第一版）。
+覆盖内容：配置接口（原生 schema 图、接受与拒绝的取值域、省略字段解析成什么、以及刻意留给 `plugin.js` 的空档）、两种 source、默认路由本身、指定了路由的请求原样放行（含只给一半路由、非字符串值、以及清单读不出来时）、`defaultModel` 覆盖与「它已不在清单内」的报错、每次委派重新读取 Settings 行，Settings 行的所有不可用形态（0 个模型、被禁用、不存在、该行自己就拒绝的清单）、两个例外、只警告一次的规则、两种还原形态、治愈上一次激活遗留的 shadow、装在我们的包装之上的包装、通过「每次函数读取都重新包装」的 proxy 卸载（正是这个形态打挂了第一版），以及 Host 契约本身：proxy 的三条陷阱与「每次读取都新建包装」、`defineProperty`/`delete` 落到实例、`ctx.effect` 立即执行并登记它返回的 disposer、Schemastery 的四条行为、Host 的 `isNativeConfigSchema` 与 `createConfigProjector` 对 `Config` 的投影，还有激活期的自检（写入被改道就拒绝激活、provider 记录读不出来就点名警告）。
 
 现场核对 —— 人工执行，每项一次工具调用，需要在已启用该插件的 Harness 上做。`<默认模型>` 指当前清单的默认项（配置了 `defaultModel` 就是它，否则是列表第一个）；此处用作示例的路由（`opencodego`、`deepseek-v4.1-flash`）是本环境的，请替换为你自己的。会话日志位于 `$DSH_HOME/sessions/<项目目录名>/<会话 id>/session.v4.jsonl.zstd`（`$DSH_HOME` 默认是 `~/.dsh`，Windows 上是 `%USERPROFILE%\.dsh`）。
 
@@ -119,9 +119,11 @@ node --test
 | 显式指定清单外的路由 | 用 workflow 的 `agent()` 显式指定一个不在清单内的路由（`subagent` 工具那条路先被 DSH 自己拦，验不到本插件） | 子代理**原样跑该路由**，插件不报错 |
 | Lead 不受影响 | `node tools/read-session.mjs <lead 会话日志> request` | `request/header` 保持 Lead 自己的路由 |
 | 禁用 = 不改变 | 禁用该 bundle，然后带显式路由跑一次探测 | 子代理运行该显式路由：没有任何包装 |
-| Harness 升级后的投影契约（先看这一行） | 用 `Config.listConfigs` 查 `entry: include:subagent-pin` | `status: "schema"` 且 `limitations: []`；`provider` 带 `minLength: 1`，嵌套的 `defaultModel` 带 `required: [provider, model]`，`source` 带 `default: "settings"` |
+| Harness 升级后的投影契约（先看这一行） | 用 `Config.listConfigs` 查 `entry: include:subagent-pin`（其中可离线判断的部分由 `test/host-contract.test.mjs` 对着锁死的库断言；`status` 只有在运行的 Host 上才看得到） | `status: "schema"` 且 `limitations: []`；`provider` 带 `minLength: 1`，嵌套的 `defaultModel` 带 `required: [provider, model]`，`source` 带 `default: "settings"` |
 
-最后一行是升级 Harness 之后要先看的。`Config` 用的是本仓库自己那份 `@deepseek-ai/schemastery`（在 `package.json` 里精确锁死），运行时校验不经过 Host 自带的那份，所以**版本号不同本身不会让插件挂掉**。但 Host 新版的 `createConfigProjector` 是按一份跨版本契约读我们图的节点形状（`type`/`meta`/`dict`/`inner`/`list`），改了约定就在这里显形：`limitations` 非空即为投影退化，`status` 不再是 `schema` 即为新 Host 不接受这份图。真退化时把 `dependencies` 换成 Host 自带那份的版本（本环境是 `3.18.4`；它只存在于 asar 内：`/dsh/node_modules/@deepseek-ai/schemastery/package.json`），然后重跑单元测试和上面整张表。
+最后一行是升级 Harness 之后要先看的。`Config` 用的是本仓库自己那份 `@deepseek-ai/schemastery`（`package.json` 里精确锁死），运行时校验不经过 Host 自带的那份，所以**版本号不同本身不会让插件挂掉**。但 Host 新版的 `createConfigProjector` 是按一份跨版本契约读我们图的节点形状（`type`/`meta`/`dict`/`inner`/`list`），改了约定就在这里显形：`limitations` 非空即为投影退化，`status` 不再是 `schema` 即为新 Host 不接受这份图。
+
+契约测试同理，而且更早：`test/host-contract.test.mjs` 是对着**锁死的三个包**跑的 —— `@deepseek-ai/schemastery`、`@deepseek-ai/cordis`、`@deepseek-ai/dsh-app-boot`。它们必须与随包的那份同版本，否则测的是另一个 Host。随包版本读自 `app.asar` 内的 `/dsh/node_modules/@deepseek-ai/*/package.json`（本环境：`schemastery` 3.18.4、`cordis` 4.0.4、`dsh-app-boot` 0.1.7-rc.2）。两点注意：**`npm view <包> version` 会骗人** —— 它给的是 `latest` 标签，本环境的 `dsh-app-boot` 是 `0.1.0-rc.6`，比随包的 `0.1.7-rc.2` 旧，所以 `devDependencies` 必须写精确版本号、不能写范围；升级 Harness 时把这三个版本一并核对、重跑单元测试，再跑上面整张表。
 
 `tools/read-session.mjs` 从证据里读一份持久会话日志；它会切分日志中拼接的 zstd 帧 —— 单次解压会丢掉后面的帧。
 
