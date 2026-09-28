@@ -3,6 +3,19 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Gives every fresh subagent delegation that names no route the configured LLM route.",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "cordis",
+    "plugin",
+    "subagent",
+    "llm-routing"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Edmund724/dsh-subagent-pin.git"
+  },
   "icon": "./icon.svg",
   "publishConfig": {
     "access": "public"
@@ -29,6 +42,7 @@
     "README.md",
     "README-en.md",
     "CONTEXT.md",
+    "LICENSE",
     "docs/**",
     "AGENTS.md",
     ".agents/notes/**",
