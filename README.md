@@ -54,6 +54,8 @@ Settings 的「子代理模型」行是一份权限清单加发现工具：它�
 
 OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会话自己的** id。以前这条头写死在路由配置里 —— 全机器一个值，所有会话与子代理共用；本包第二行 `opencode-session` 把它换成当前会话的 id（顶层形如 `session-3f1c…`，子代理是裸 UUID，两种形状网关都接受），静态头则应该从路由里删掉。
 
+**上游已经修好了，是依赖没升。** pi-ai 从 `0.86.0` 起自带 `withOpenCodeSessionHeader`：它把 `x-opencode-session` 设成这次请求自己的 `options.sessionId`，已经带这个头就不覆盖。DSH 仍钉 `@earendil-works/pi-ai ^0.85.1`（`^0.85.1` = `>=0.85.1 <0.86.0`，0.86/0.87 都被排除），master 上没有一处引用这段逻辑，也没有带它的 release —— 所以这一行现在补的是 DSH 升级前的缺口。**但光升级也够不到本环境这条路由**：那个 wrapper 包的是 catalog 工厂，而 `opencodego` 手写了 `api: anthropic-messages`，走 `PROTOCOLS` 现场构造 provider，不经过 catalog。DSH 升级之后这一行还需不需要，取决于这条路由继续手写 `api:` 还是改回 catalog 形态。
+
 作用域收得很紧：一次请求要**同时**满足三条才改写 —— 在一次 `llm/stream` 的作用域里、方法是 `POST`、且 provider id 以某个配置前缀开头**或**落到的域名是配置的网关域名。所以 gateway 自己的 `GET {baseURL}/models` 发现请求、别的 provider 的全部流量、web fetch 与 MCP 都原样透传。判不出来（例如 session id 含非法字符）也透传：不会让一个坏 id 把健康的模型调用变成硬失败。
 
 随包不带 `config`：下面四个键都可选，schema 默认值就是安装形态（列表留空表示那一维不认领）：
