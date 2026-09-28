@@ -1,0 +1,23 @@
+<!--
+  The OpenCode mark, drawn on the official 36×36 viewBox: the wordmark's "o"
+  glyph (24×30 on opencode.ai/brand), scaled ×0.8 so the glyph stands 24 units
+  tall — the optical size the Host's own bundle icons draw at — and centred, which
+  keeps the frame's stroke uniform at 4.8. Recoloured into this package's blue,
+  the same gradient the pin draws with, so the two rows of one bundle read as a
+  family while their shapes tell the features apart. This row annotates what goes
+  on the wire, and OpenCode is the end that asks for it.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="36" height="36" fill="none">
+  <path fill="url(#frame)" fill-rule="evenodd" d="M8.4 6h19.2v24H8.4zm4.8 4.8h9.6v14.4h-9.6z"/>
+  <rect x="13.2" y="15.6" width="9.6" height="9.6" fill="url(#panel)"/>
+  <defs>
+    <linearGradient id="frame" x1="18" y1="6" x2="18" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#69B9FF"/>
+      <stop offset="1" stop-color="#324DE2"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="18" y1="15.6" x2="18" y2="25.2" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#BFDCFF"/>
+      <stop offset="1" stop-color="#5E96FF"/>
+    </linearGradient>
+  </defs>
+</svg>

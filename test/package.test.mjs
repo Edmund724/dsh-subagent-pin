@@ -15,24 +15,27 @@
  * Plugin Manager card silently.
  */
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync, statSync } from 'node:fs'
-import { dirname, extname, isAbsolute, join, resolve } from 'node:path'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
+import { iconFindings, MAX_ICON_BYTES } from '../test-support/manifest-icon.mjs'
 import { repositoryPaths, ships } from '../test-support/package-files.mjs'
 
 /** The repository root, where `package.json` sits. */
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
+const MANIFEST = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
+
 const {
   exports: subpaths,
   files,
-  icon,
   name,
   publishConfig,
   private: isPrivate,
-} = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
+} = MANIFEST
 
 test('every subpath export resolves to a file in this repository', () => {
   const targets = Object.entries(subpaths).filter(([key]) => key !== './package.json')
@@ -65,31 +68,47 @@ test('the shipped tools are the ones the export map and the scripts name', () =>
 
 // ── the display metadata the Plugin Manager reads without activating ────────
 
-/** The extensions and the raw size ceiling DSH admits a manifest icon under. */
-const ICON_MEDIA_TYPES = ['.svg', '.png', '.jpg', '.jpeg', '.webp']
-const MAX_ICON_BYTES = 256 * 1024
-
 test('the manifest icon is one DSH will render, and it ships', () => {
   // DSH reads the icon through `${specifier}/package.json` and inlines the file
   // as a data URI (`app-boot.js` `iconOf`), so a path DSH would reject, a file
   // outside the manifest directory, or a missing `files` entry all degrade the
-  // Plugin Manager card to default artwork without a single failing check.
-  assert.equal(typeof icon, 'string', 'package.json declares no top-level `icon`, so the card falls back to default artwork')
-  assert.ok(!isAbsolute(icon) && !icon.split(/[\\/]/).includes('..'), `icon "${icon}" must be a relative path inside the manifest directory`)
-  assert.ok(ICON_MEDIA_TYPES.includes(extname(icon).toLowerCase()), `icon "${icon}" must be one of ${ICON_MEDIA_TYPES.join(', ')}`)
+  // Plugin Manager card to default artwork without a single failing check. The
+  // rules themselves live in `test-support/manifest-icon.mjs`, where every row's
+  // own manifest is held to the same ones.
+  assert.deepEqual(iconFindings(MANIFEST, join(ROOT, 'package.json')), [])
 
   // `files` entries are repository-relative, the manifest may write `./icon.svg`.
-  const shipped = icon.replace(/^\.\//u, '')
-  const file = join(ROOT, icon)
-  assert.ok(existsSync(file), `package.json declares icon "${icon}", which is not a file in this repository`)
-  assert.ok(statSync(file).size <= MAX_ICON_BYTES, `icon "${icon}" exceeds the ${MAX_ICON_BYTES} byte ceiling DSH reads icons under`)
-  assert.ok(files.some((entry) => ships(entry, shipped)), `icon "${icon}" is declared but not shipped by \`files\` (it ships ${files.join(', ')})`)
+  const shipped = MANIFEST.icon.replace(/^\.\//u, '')
+  assert.ok(files.some((entry) => ships(entry, shipped)), `icon "${MANIFEST.icon}" is declared but not shipped by \`files\` (it ships ${files.join(', ')})`)
+})
 
-  if (extname(icon).toLowerCase() === '.svg') {
-    // A card renders the artwork at 36px and a row at 30px, the slot the official
-    // artwork draws on a 36×36 viewBox; another box would put this glyph out of
-    // proportion with the family it sits beside.
-    assert.match(readFileSync(file, 'utf8'), /viewBox="0 0 36 36"/u, `icon "${icon}" must draw on the official 36×36 viewBox`)
+test('an icon DSH could not draw is reported, not assumed fine', () => {
+  // The rule set above is only a guard while a manifest that breaks one is
+  // reported, and every case here is a way a hand-written `icon` degrades the
+  // artwork silently: the Host keeps the row, its name, and its switch, and
+  // quietly substitutes the default picture.
+  const manifestPath = join(ROOT, 'package.json')
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-manifest-icon-'))
+  try {
+    const local = join(directory, 'package.json')
+    writeFileSync(join(directory, 'wrong-box.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"/>')
+    writeFileSync(join(directory, 'oversized.svg'), Buffer.concat([Buffer.from('<svg viewBox="0 0 36 36">'), Buffer.alloc(MAX_ICON_BYTES, 0x78)]))
+
+    const cases = [
+      ['declares no icon', {}, manifestPath, /no non-empty/u],
+      ['names an absolute path', { icon: join(ROOT, 'icon.svg') }, manifestPath, /must be a relative file path/u],
+      ['names a file type DSH does not inline', { icon: './package.json' }, manifestPath, /must be SVG, PNG, JPEG, or WebP/u],
+      ['names a file that is not there', { icon: './no-such-icon.svg' }, manifestPath, /is not a file/u],
+      ['draws off the family box', { icon: './wrong-box.svg' }, local, /official 36×36 viewBox/u],
+      ['inlines more than the ceiling', { icon: './oversized.svg' }, local, /exceeds the 256 KiB ceiling/u],
+    ]
+    for (const [what, manifest, where, expected] of cases) {
+      const findings = iconFindings(manifest, where)
+      assert.equal(findings.length, 1, `${what}: expected one finding, got ${JSON.stringify(findings)}`)
+      assert.match(findings[0], expected, `${what}: the finding does not say why: ${findings[0]}`)
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
   }
 })
 

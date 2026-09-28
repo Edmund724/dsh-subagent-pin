@@ -27,7 +27,7 @@
     "./subagent-pin/package.json": "./package.json",
     "./subagent-pin/locale/*.json": "./locale/subagent-pin/*.json",
     "./opencode-header": "./opencode-header.js",
-    "./opencode-header/package.json": "./package.json",
+    "./opencode-header/package.json": "./opencode-header.package.json",
     "./opencode-header/locale/*.json": "./locale/opencode-header/*.json",
     "./verify": "./tools/verify-session.mjs",
     "./package.json": "./package.json",
@@ -56,6 +56,8 @@
     ".agents/notes/**",
     "locale/**",
     "icon.svg",
+    "opencode-header.icon.svg",
+    "opencode-header.package.json",
     "test/**",
     "test-support/**",
     "tools/*.mjs"

@@ -27,11 +27,13 @@ Harness 自带的运行时上，随包安装进某个 profile。
 | `.agents/notes/` | 决策记录（为什么这样做、为什么不做）；索引见 `.agents/notes/README.md` |
 | `test/` | `node:test` 文件，不启动 Harness；逐文件拆分与总数见 `docs/verification.md` |
 | `test-support/host-doubles.mjs` | 真实 Cordis 上的替身 |
+| `test-support/manifest-icon.mjs` | `icon` 的判据：DSH 会画成什么样、本包一律画在哪个 viewBox 上（包根与两行共用） |
 | `tools/read-session.mjs` | 内部证据读取器：切分拼接的 zstd 帧、按完整 type 选事件 |
 | `tools/verify-session.mjs` | `verify` 入口（`exports` 的 `./verify`） |
 | `locale/en.json` / `locale/zh.json` | 组合包卡片（整包）的标题与描述（双语） |
 | `locale/subagent-pin/{en,zh}.json`、`locale/opencode-header/{en,zh}.json` | 各行自己的标题与描述：DSH 按该行的 `name` 地址读这一份（行名即行地址） |
-| `icon.svg` | manifest 顶层 `icon`，画在官方 36×36 viewBox 上 |
+| `icon.svg` | 组合包卡片（包根 manifest）的 `icon`，画在官方 36×36 viewBox 上 |
+| `opencode-header.package.json` / `opencode-header.icon.svg` | `opencode-header` **那一行地址**导出的 manifest 与它声明的图标：DSH 读 `${name}/package.json` 的 `icon`，所以两行的图标不会互相顶掉 |
 
 ## 命令
 

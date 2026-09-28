@@ -14,7 +14,7 @@ Turning the checkmarks into the default of every delegation is only possible ins
 
 1. `git clone https://github.com/Edmund724/dsh-subagent-pin.git <clone directory>`, then run `npm install` in it
 2. In the `dependencies` of `~/.dsh/profiles/<profile>/package.json`, write `"@edmund724/dsh-subagent-pin": "link:<absolute clone path>"`
-3. Append the mount row to `~/.dsh/profiles/<profile>/cordis.patch.yml` — the row name is **that row's own address** (DSH reads its title and description from it, so `subagent-pin` mounts `…/subagent-pin` rather than the package root); the row's `config` is this plugin's settings form: `source` / `defaultModel` / `reasoningEffort` — the Settings page writes exactly it; omit it and every value is the schema default:
+3. Append the mount row to `~/.dsh/profiles/<profile>/cordis.patch.yml` — the row name is **that row's own address** (DSH reads its title, description, and icon from it, so `subagent-pin` mounts `…/subagent-pin` rather than the package root); the row's `config` is this plugin's settings form: `source` / `defaultModel` / `reasoningEffort` — the Settings page writes exactly it; omit it and every value is the schema default:
 
 ```yaml
 - id: subagent-pin
@@ -24,6 +24,8 @@ Turning the checkmarks into the default of every delegation is only possible ins
 ```
 
 The same package also inserts a second row, `opencode-header` (next section): installing this package through `dsh.profile.bundles` brings it along, and a hand-written mount row follows the shape above with no `config`.
+
+The two rows also draw their own icons — `subagent-pin` shows the pin (the package root's `icon.svg`), `opencode-header` shows the OpenCode mark (the `opencode-header.icon.svg` its own address exports through `opencode-header.package.json`: the official geometry, this package's blue). DSH reads the `icon` of each address's own `package.json`, so different addresses can draw different marks; one icon shared by both rows leaves the cards distinguishable by title alone.
 
 4. Run `pnpm install` in `~/.dsh/profiles/<profile>`, then restart the Harness
 
@@ -120,6 +122,6 @@ Disable `@edmund724/dsh-subagent-pin` with `plugin_manager`'s `set_bundle`, or d
 ## Further reading
 
 - [The seam and the Host contract](docs/seam.md) — why the wrapper lives on descriptors, what activation checks, and what a capability downgrade warns about.
-- [Tests and live checks](docs/verification.md) — the 165 unit tests by file, how to use `verify`, and the checklist to run after a Harness upgrade.
+- [Tests and live checks](docs/verification.md) — the 167 unit tests by file, how to use `verify`, and the checklist to run after a Harness upgrade.
 - [The OpenCode Go session header](docs/opencode-header.md) — the header row's scope, where its value comes from, its four config keys and how to check it.
 - [The glossary](CONTEXT.md) — the four decisions and the two exemption reasons; read it before touching the policy.

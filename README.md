@@ -14,7 +14,7 @@ Settings 的「子代理模型」行是一份权限清单加发现工具：它�
 
 1. `git clone https://github.com/Edmund724/dsh-subagent-pin.git <克隆目录>`，然后在克隆目录里 `npm install`
 2. `~/.dsh/profiles/<profile>/package.json` 的 `dependencies` 写 `"@edmund724/dsh-subagent-pin": "link:<克隆目录绝对路径>"`
-3. `~/.dsh/profiles/<profile>/cordis.patch.yml` 追加挂载行 —— 行名是**这一行自己的地址**（DSH 从它读这行的标题与描述，所以 `subagent-pin` 写 `…/subagent-pin`，不是包根）；这一行的 `config` 就是本插件的设置表单：`source` / `defaultModel` / `reasoningEffort`，设置页写的就是它；不写则全部用 schema 默认值：
+3. `~/.dsh/profiles/<profile>/cordis.patch.yml` 追加挂载行 —— 行名是**这一行自己的地址**（DSH 从它读这行的标题、描述与图标，所以 `subagent-pin` 写 `…/subagent-pin`，不是包根）；这一行的 `config` 就是本插件的设置表单：`source` / `defaultModel` / `reasoningEffort`，设置页写的就是它；不写则全部用 schema 默认值：
 
 ```yaml
 - id: subagent-pin
@@ -24,6 +24,8 @@ Settings 的「子代理模型」行是一份权限清单加发现工具：它�
 ```
 
 同一个包还会 insert 第二行 `opencode-header`（下一节）：走 `dsh.profile.bundles` 装本包时它随包生效，手写挂载行的话照上面的格式再加一行、不带 `config`。
+
+两行在插件列表里各画各的图标 —— `subagent-pin` 那行是图钉（包根 `package.json` 的 `icon.svg`），`opencode-header` 那行是 OpenCode 的标记（它自己地址导出的 `opencode-header.package.json` 声明的 `opencode-header.icon.svg`，官方几何、本包蓝色）。DSH 按地址读每个 `package.json` 的 `icon`，所以地址不同，画出来的标记就可以不同；两行共用一个图标，卡片上就只能靠标题分辨。
 
 4. 在 `~/.dsh/profiles/<profile>` 执行 `pnpm install`，然后重启 Harness
 
@@ -120,6 +122,6 @@ OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会
 ## 深入阅读
 
 - [接缝与 Host 契约](docs/seam.md) —— 包装为什么落在 descriptor 上、激活时检查什么、能力退化时警告什么。
-- [测试与现场核对](docs/verification.md) —— 165 项单元测试的逐文件拆分、`verify` 的用法、Harness 升级后的核对表。
+- [测试与现场核对](docs/verification.md) —— 167 项单元测试的逐文件拆分、`verify` 的用法、Harness 升级后的核对表。
 - [OpenCode Go 的会话头](docs/opencode-header.md) —— 会话头那行的作用域、值的来源、四个配置键与核对方法。
 - [领域词表](CONTEXT.md) —— 四种决定与两类豁免原因的定义，改策略前先读。

@@ -1,0 +1,5 @@
+{
+  "name": "@edmund724/dsh-subagent-pin/opencode-header",
+  "description": "Sends each conversation's own id in the x-opencode-session header OpenCode Go requires.",
+  "icon": "./opencode-header.icon.svg"
+}
