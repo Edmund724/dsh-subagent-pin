@@ -47,7 +47,7 @@ npm run verify -- --lead <lead 会话日志>   # 另有 --child / --expect / --d
 
 升级 Harness 后先看最后一行，再跑整张表。三点注意：
 
-- 契约测试对着**锁死的三个包**跑 —— `@deepseek-ai/schemastery`、`@deepseek-ai/cordis`、`@deepseek-ai/dsh-app-boot`（本环境：3.18.4 / 4.0.4 / 0.1.7-rc.2，读自 asar 内 `/dsh/node_modules/@deepseek-ai/*/package.json`），必须与随包 Host 同版本，否则测的是另一个 Host。**`npm view <包> version` 会骗人** —— 它给 `latest` 标签，本环境的 latest 是更旧的 0.1.0-rc.6，所以 `devDependencies` 必须写精确版本；升级时核对三个版本、重跑单元测试。
+- 契约测试对着**锁死的三个包**跑 —— `@deepseek-ai/schemastery`、`@deepseek-ai/cordis`、`@deepseek-ai/dsh-app-boot`（本环境：3.18.4 / 4.0.4 / 0.2.0-rc.1，读自 asar 内 `/dsh/node_modules/@deepseek-ai/*/package.json`），必须与随包 Host 同版本，否则测的是另一个 Host。**`npm view <包> version` 会骗人** —— 它给 `latest` 标签，本环境的 latest 是更旧的 0.1.0-rc.6，所以 `devDependencies` 必须写精确版本；升级时核对三个版本、重跑单元测试。
 - `Config` 用本仓库自己锁定的 schemastery，校验不经过 Host 那份，**版本号不同本身不会让插件挂掉**；但 Host 的 `createConfigProjector` 按跨版本契约读图的节点形状（`type`/`meta`/`dict`/`inner`/`list`），`limitations` 非空或 `status` 不再是 `schema` 即为投影退化。
 - 一处不靠包版本的耦合：`config-schema.js` 的 `THINKING_LEVELS` 就是 pi-ai profile `reasoning` 字段那组词 —— Host 新增 level 要在这里补上，否则 schema 会拒掉 Host 已认识的强度。
 
