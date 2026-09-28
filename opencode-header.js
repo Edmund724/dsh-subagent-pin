@@ -7,7 +7,7 @@
  * per-request header for pi-ai routes. `llm/stream` hands listeners a
  * `GenerateOptions` with no `headers` field, and the loop deep-freezes it; the
  * pi-ai adapter reads headers from the static route profile alone
- * (`llm-pi-ai/src/adapter.ts`, `requestHeaders(profile.headers)`). Upstream
+ * (`dsh-llm-pi-ai/lib/index.js`, `requestHeaders(profile.headers)`). Upstream
  * pi-ai wraps its *catalog* factories from 0.86.0 on, which a hand-declared
  * route that sets `api:` never goes through — and DSH still pins `^0.85.1`. So
  * the only place left is the process transport, narrowed to exactly the
