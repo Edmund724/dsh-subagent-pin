@@ -16,9 +16,17 @@
  * them with (the include's entry-list dialect, `!!js` expressions included). The
  * assertions are therefore about what the Host would mount, not about what a
  * generic reader happens to make of the same bytes.
+ *
+ * What a row is *called* is not in the patch at all: DSH reads the display text
+ * from the row's own address (`${name}/locale/*.json`, `${name}/package.json`),
+ * so two rows pointing at the same address show the same name and a row pointing
+ * at an address with no dictionary shows its bare specifier. Nothing here saw
+ * that either — a row could borrow the whole package's title, which is what the
+ * pin row did while the session row could be switched off on its own.
  */
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { basename, dirname, join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -44,7 +52,7 @@ const { name: PACKAGE_NAME, dsh } = JSON.parse(readFileSync(join(ROOT, 'package.
 const ROWS = [
   {
     id: 'subagent-pin',
-    name: PACKAGE_NAME,
+    name: `${PACKAGE_NAME}/subagent-pin`,
     schema: PIN_CONFIG,
     keys: PIN_KEYS,
     shipped: { source: 'settings' },
@@ -158,4 +166,112 @@ test('the shipped configs are the ones the READMEs document', () => {
     hosts: ['opencode.ai'],
     headerName: 'x-opencode-session',
   })
+})
+
+// ── the name each row shows in the Plugin Manager ──────────────────────────
+
+/** The languages this package ships dictionaries for — the two its READMEs are written in. */
+const LANGUAGES = ['en', 'zh']
+
+/** The fields of one dictionary entry DSH reads; anything else in the file is ignored. */
+const TEXT_FIELDS = ['title', 'description']
+
+/** The result of a module resolution, or `undefined` when the export map does not admit it. */
+function optionalPath(attempt) {
+  try {
+    return attempt()
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * One address's display metadata, read the way DSH reads it.
+ *
+ * `readPluginMeta()` in `@deepseek-ai/dsh-app-boot` resolves `${specifier}/locale/en.json`
+ * and `${specifier}/package.json` through the address's own export map, takes every
+ * other `.json` beside the English dictionary as one language, and falls back to the
+ * manifest for a field no dictionary carries. A row whose address exports neither
+ * carries no metadata at all, and the Plugin Manager then prints the module
+ * specifier — which is why a row that names no dictionary of its own still shows
+ * something, just nothing anybody wrote.
+ *
+ * @param specifier - a row's module name, exactly as the patch writes it.
+ * @returns the dictionaries by language, and the manifest read from that same address.
+ */
+function addressMeta(specifier) {
+  const resolve = (request) => createRequire(join(ROOT, 'package.json')).resolve(request)
+  const dictionaries = new Map()
+  const english = optionalPath(() => resolve(`${specifier}/locale/en.json`))
+  if (english !== undefined) {
+    for (const entry of readdirSync(dirname(english))) {
+      if (!entry.endsWith('.json')) continue
+      const parsed = JSON.parse(readFileSync(resolve(`${specifier}/locale/${entry}`), 'utf8'))
+      dictionaries.set(entry.slice(0, -5).toLowerCase(), {
+        title: parsed.meta?.title,
+        description: parsed.meta?.description,
+      })
+    }
+  }
+  const manifestPath = optionalPath(() => resolve(`${specifier}/package.json`))
+  return {
+    dictionaries,
+    manifest: manifestPath === undefined ? undefined : JSON.parse(readFileSync(manifestPath, 'utf8')),
+  }
+}
+
+test('every row exports its own dictionaries and manifest, so both rows carry a written name', () => {
+  // The row's address is what DSH reads both from, so an address without a
+  // dictionary shows the specifier and an address without a manifest loses the
+  // icon. Non-empty matters twice over: `textOf` throws on a blank field, and a
+  // dictionary that throws leaves the row with an error label instead of a name.
+  for (const row of insertedRows()) {
+    const { dictionaries, manifest } = addressMeta(row.name)
+
+    for (const language of LANGUAGES) {
+      const text = dictionaries.get(language)
+      assert.ok(
+        text !== undefined,
+        `"${row.id}" mounts ${row.name}, which exports no ${language} dictionary, so the Plugin Manager shows the specifier instead of a name`,
+      )
+      for (const field of TEXT_FIELDS) {
+        assert.ok(
+          typeof text[field] === 'string' && text[field].trim() !== '',
+          `"${row.id}" writes ${language} meta.${field} as ${JSON.stringify(text[field])}, which DSH reads as absent or as a metadata error`,
+        )
+      }
+    }
+
+    assert.notEqual(manifest, undefined, `"${row.id}" mounts ${row.name}, which exports no package.json, so DSH drops the row's icon`)
+  }
+})
+
+test('no row repeats another row\'s copy: a row names its own function, not its neighbour\'s', () => {
+  // Two rows of one package are two features, each switchable on its own, so a
+  // row that carries the package's combined title claims the other row too — the
+  // pin row did exactly that while the session row could be switched off. The
+  // bundle's own title (the card) is `pin + session header`, so a row that
+  // repeats it repeats its neighbour; the comparison is per language and field.
+  const rows = insertedRows().map((row) => ({ id: row.id, ...addressMeta(row.name) }))
+  let compared = 0
+
+  for (const row of rows) {
+    for (const other of rows) {
+      if (other.id === row.id) continue
+      for (const language of LANGUAGES) {
+        const mine = row.dictionaries.get(language)
+        const theirs = other.dictionaries.get(language)
+        if (mine === undefined || theirs === undefined) continue
+        for (const field of TEXT_FIELDS) {
+          compared += 1
+          assert.ok(
+            !mine[field].includes(theirs[field]),
+            `"${row.id}" writes "${mine[field]}" as its ${language} meta.${field}, which repeats what "${other.id}" writes — one row may not answer for the other's feature`,
+          )
+        }
+      }
+    }
+  }
+
+  assert.notEqual(compared, 0, 'no two rows carry dictionaries to compare, so this check proves nothing')
 })

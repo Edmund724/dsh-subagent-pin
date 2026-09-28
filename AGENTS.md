@@ -29,7 +29,8 @@ Harness 自带的运行时上，随包安装进某个 profile。
 | `test-support/host-doubles.mjs` | 真实 Cordis 上的替身 |
 | `tools/read-session.mjs` | 内部证据读取器：切分拼接的 zstd 帧、按完整 type 选事件 |
 | `tools/verify-session.mjs` | `verify` 入口（`exports` 的 `./verify`） |
-| `locale/en.json` / `locale/zh.json` | 插件行的标题与描述（双语） |
+| `locale/en.json` / `locale/zh.json` | 组合包卡片（整包）的标题与描述（双语） |
+| `locale/subagent-pin/{en,zh}.json`、`locale/opencode-session/{en,zh}.json` | 各行自己的标题与描述：DSH 按该行的 `name` 地址读这一份（行名即行地址） |
 | `icon.svg` | manifest 顶层 `icon`，画在官方 36×36 viewBox 上 |
 
 ## 命令

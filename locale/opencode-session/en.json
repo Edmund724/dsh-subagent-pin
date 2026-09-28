@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "OpenCode session header",
+    "description": "Sends each conversation's own id in the x-opencode-session header OpenCode Go requires."
+  }
+}

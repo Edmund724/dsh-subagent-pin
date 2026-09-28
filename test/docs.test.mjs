@@ -69,7 +69,7 @@ const FILES = MANIFEST.files
  * catches a key no schema declares.
  */
 const ROW_SCHEMAS = new Map([
-  [MANIFEST.name, { keys: KNOWN_KEYS, route: 'defaultModel', routeKeys: ROUTE_KEYS }],
+  [`${MANIFEST.name}/subagent-pin`, { keys: KNOWN_KEYS, route: 'defaultModel', routeKeys: ROUTE_KEYS }],
   [`${MANIFEST.name}/opencode-session`, { keys: SESSION_KEYS, route: null, routeKeys: [] }],
 ])
 

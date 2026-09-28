@@ -23,7 +23,12 @@
   },
   "exports": {
     ".": "./plugin.js",
+    "./subagent-pin": "./plugin.js",
+    "./subagent-pin/package.json": "./package.json",
+    "./subagent-pin/locale/*.json": "./locale/subagent-pin/*.json",
     "./opencode-session": "./opencode-session.js",
+    "./opencode-session/package.json": "./package.json",
+    "./opencode-session/locale/*.json": "./locale/opencode-session/*.json",
     "./verify": "./tools/verify-session.mjs",
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
@@ -49,7 +54,7 @@
     "docs/**",
     "AGENTS.md",
     ".agents/notes/**",
-    "locale/*.json",
+    "locale/**",
     "icon.svg",
     "test/**",
     "test-support/**",

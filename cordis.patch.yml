@@ -3,9 +3,12 @@
 #   models checked in Settings (policy table: README 「策略」).
 # - `opencode-session`: carry each conversation's own id to OpenCode Go in
 #   `x-opencode-session` (why the transport seam: docs/opencode-session.md).
+# Each row mounts its own address: DSH reads a row's title and description from
+# that address (`locale/<row id>/`), so the bundle card keeps the combined name
+# while each row is named for its own feature.
 - insert:
     - id: subagent-pin
-      name: '@edmund724/dsh-subagent-pin'
+      name: '@edmund724/dsh-subagent-pin/subagent-pin'
       config:
         source: settings
     - id: opencode-session

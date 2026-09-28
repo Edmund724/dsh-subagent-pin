@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "OpenCode 会话头",
+    "description": "把每个会话自己的 id 送进 OpenCode Go 要求的 x-opencode-session。"
+  }
+}

@@ -14,11 +14,11 @@ Turning the checkmarks into the default of every delegation is only possible ins
 
 1. `git clone https://github.com/Edmund724/dsh-subagent-pin.git <clone directory>`, then run `npm install` in it
 2. In the `dependencies` of `~/.dsh/profiles/<profile>/package.json`, write `"@edmund724/dsh-subagent-pin": "link:<absolute clone path>"`
-3. Append the mount row to `~/.dsh/profiles/<profile>/cordis.patch.yml` (the row's `config` is this plugin's settings form: `source` / `defaultModel` / `reasoningEffort` — the Settings page writes exactly it; omit it and every value is the schema default):
+3. Append the mount row to `~/.dsh/profiles/<profile>/cordis.patch.yml` — the row name is **that row's own address** (DSH reads its title and description from it, so `subagent-pin` mounts `…/subagent-pin` rather than the package root); the row's `config` is this plugin's settings form: `source` / `defaultModel` / `reasoningEffort` — the Settings page writes exactly it; omit it and every value is the schema default:
 
 ```yaml
 - id: subagent-pin
-  name: '@edmund724/dsh-subagent-pin'
+  name: '@edmund724/dsh-subagent-pin/subagent-pin'
   config:
     source: settings
 ```
@@ -82,7 +82,7 @@ The two blocks below are **examples: every writable key**, not the shipped conte
 
 ```yaml
 - id: subagent-pin
-  name: '@edmund724/dsh-subagent-pin'
+  name: '@edmund724/dsh-subagent-pin/subagent-pin'
   config:
     source: settings            # default
     defaultModel:               # optional; defaults to the first Settings model
@@ -95,7 +95,7 @@ Example two, the static mode, for a Host without the Settings row:
 
 ```yaml
 - id: subagent-pin
-  name: '@edmund724/dsh-subagent-pin'
+  name: '@edmund724/dsh-subagent-pin/subagent-pin'
   config:
     source: pinned
     provider: <provider-id>
@@ -120,6 +120,6 @@ Disable `@edmund724/dsh-subagent-pin` with `plugin_manager`'s `set_bundle`, or d
 ## Further reading
 
 - [The seam and the Host contract](docs/seam.md) — why the wrapper lives on descriptors, what activation checks, and what a capability downgrade warns about.
-- [Tests and live checks](docs/verification.md) — the 158 unit tests by file, how to use `verify`, and the checklist to run after a Harness upgrade.
+- [Tests and live checks](docs/verification.md) — the 160 unit tests by file, how to use `verify`, and the checklist to run after a Harness upgrade.
 - [The OpenCode Go session header](docs/opencode-session.md) — the header row's scope, where its value comes from, its four config keys and how to check it.
 - [The glossary](CONTEXT.md) — the four decisions and the two exemption reasons; read it before touching the policy.
