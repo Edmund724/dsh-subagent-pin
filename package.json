@@ -1,5 +1,5 @@
 {
-  "name": "@edmund724/dsh-subagent-pin",
+  "name": "dsh-subagent-pin",
   "version": "1.1.0",
   "type": "module",
   "description": "Two DSH Host rows from one package: pin fresh subagent delegations to the configured LLM route, and carry each conversation's id to OpenCode Go.",
@@ -18,9 +18,6 @@
     "url": "git+https://github.com/Edmund724/dsh-subagent-pin.git"
   },
   "icon": "./icon.svg",
-  "publishConfig": {
-    "access": "public"
-  },
   "exports": {
     ".": "./plugin.js",
     "./subagent-pin": "./plugin.js",

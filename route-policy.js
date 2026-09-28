@@ -30,7 +30,7 @@
  * `agentOptions` capability (an out-of-process backend) is left to route its own
  * child. Both apply only to a delegation that names no route.
  *
- * @module @edmund724/dsh-subagent-pin/route-policy
+ * @module dsh-subagent-pin/route-policy
  */
 
 /** The prefix every rejection and notice carries. */

@@ -24,7 +24,7 @@
  * Settings row of `@deepseek-ai/dsh-tool-subagent/model-selection-settings`,
  * read fresh for every delegation.
  *
- * @module @edmund724/dsh-subagent-pin/config-schema
+ * @module dsh-subagent-pin/config-schema
  */
 
 import z from '@deepseek-ai/schemastery'

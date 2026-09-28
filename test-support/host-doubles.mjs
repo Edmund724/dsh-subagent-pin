@@ -16,7 +16,7 @@
  * default test glob matches everything under a `test` directory: in
  * `test/support/` this module would be run as a test file, which it is not.
  *
- * @module @edmund724/dsh-subagent-pin/test-support/host-doubles
+ * @module dsh-subagent-pin/test-support/host-doubles
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'

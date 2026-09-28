@@ -53,7 +53,7 @@
  * before `apply()` runs. The reasoning behind the transport seam, and what was
  * ruled out, is in `docs/opencode-header.md`.
  *
- * @module @edmund724/dsh-subagent-pin/opencode-header
+ * @module dsh-subagent-pin/opencode-header
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks'
@@ -68,7 +68,7 @@ export const PREFIX = '[opencode-header] '
 const DEFAULT_HEADER = 'x-opencode-session'
 
 /** Where the installed patch, and its refcount, live on the transport surface. */
-const PATCH = Symbol.for('@edmund724/dsh-subagent-pin/opencode-header/patch')
+const PATCH = Symbol.for('dsh-subagent-pin/opencode-header/patch')
 
 /** Provider ids this row claims by prefix unless the row says otherwise. */
 const DEFAULT_PROVIDERS = ['opencode']

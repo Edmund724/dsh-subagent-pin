@@ -13,12 +13,12 @@ Settings 的「子代理模型」行是一份权限清单加发现工具：它�
 ## 安装
 
 1. `git clone https://github.com/Edmund724/dsh-subagent-pin.git <克隆目录>`，然后在克隆目录里 `npm install`
-2. `~/.dsh/profiles/<profile>/package.json` 的 `dependencies` 写 `"@edmund724/dsh-subagent-pin": "link:<克隆目录绝对路径>"`
+2. `~/.dsh/profiles/<profile>/package.json` 的 `dependencies` 写 `"dsh-subagent-pin": "link:<克隆目录绝对路径>"`
 3. `~/.dsh/profiles/<profile>/cordis.patch.yml` 追加挂载行 —— 行名是**这一行自己的地址**（DSH 从它读这行的标题、描述与图标，所以 `subagent-pin` 写 `…/subagent-pin`，不是包根）；这一行的 `config` 就是本插件的设置表单：`source` / `defaultModel` / `reasoningEffort`，设置页写的就是它；不写则全部用 schema 默认值：
 
 ```yaml
 - id: subagent-pin
-  name: '@edmund724/dsh-subagent-pin/subagent-pin'
+  name: 'dsh-subagent-pin/subagent-pin'
   config:
     source: settings
 ```
@@ -66,7 +66,7 @@ OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会
 
 ```yaml
 - id: opencode-header
-  name: '@edmund724/dsh-subagent-pin/opencode-header'
+  name: 'dsh-subagent-pin/opencode-header'
   config:
     enabled: true
     headerName: x-opencode-session
@@ -84,7 +84,7 @@ OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会
 
 ```yaml
 - id: subagent-pin
-  name: '@edmund724/dsh-subagent-pin/subagent-pin'
+  name: 'dsh-subagent-pin/subagent-pin'
   config:
     source: settings            # 默认
     defaultModel:               # 可选；默认取 Settings 列表第一个
@@ -97,7 +97,7 @@ OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会
 
 ```yaml
 - id: subagent-pin
-  name: '@edmund724/dsh-subagent-pin/subagent-pin'
+  name: 'dsh-subagent-pin/subagent-pin'
   config:
     source: pinned
     provider: <provider-id>
@@ -117,7 +117,7 @@ OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会
 
 ## 回滚
 
-用 `plugin_manager` 的 `set_bundle` 禁用 `@edmund724/dsh-subagent-pin`，或 `remove_bundle` 删除。禁用会在运行中的进程里卸载包装：接缝恢复未包装状态，子代理重新继承委派方的路由。本插件没动过任何 profile patch 或 preset，移除后组合与原来完全一致。
+用 `plugin_manager` 的 `set_bundle` 禁用 `dsh-subagent-pin`，或 `remove_bundle` 删除。禁用会在运行中的进程里卸载包装：接缝恢复未包装状态，子代理重新继承委派方的路由。本插件没动过任何 profile patch 或 preset，移除后组合与原来完全一致。
 
 ## 深入阅读
 

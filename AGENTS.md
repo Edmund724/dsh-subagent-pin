@@ -1,6 +1,6 @@
 # AGENTS.md
 
-`@edmund724/dsh-subagent-pin` 是装在包外的 Host 插件，一个包两行：`subagent-pin`
+`dsh-subagent-pin` 是装在包外的 Host 插件，一个包两行：`subagent-pin`
 包住 `ctx.subagents` 的 `start` / `startContinuable`，给**没有自己指定路由**的新建
 委派补上路由清单里的默认项；`opencode-header` 补在进程传输层上，把每个会话自己的
 **派生标识**（原始 id 不出机器）送进 OpenCode Go 要的 `x-opencode-session`。它跑在

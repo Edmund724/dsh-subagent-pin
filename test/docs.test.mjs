@@ -389,7 +389,7 @@ test('a config key that belongs to the package\'s other row is reported', () => 
   // The two rows' key sets are disjoint, and the block's `name:` is what decides
   // which schema a key is checked against — a key borrowed from the neighbour
   // must not pass on the strength of the block it sits in.
-  const text = `${read('README.md')}\n\n\`\`\`yaml\n- id: opencode-header\n  name: '@edmund724/dsh-subagent-pin/opencode-header'\n  config:\n    source: settings\n\`\`\`\n`
+  const text = `${read('README.md')}\n\n\`\`\`yaml\n- id: opencode-header\n  name: 'dsh-subagent-pin/opencode-header'\n  config:\n    source: settings\n\`\`\`\n`
   const findings = configKeyFindings('README.md', text)
 
   assert.equal(findings.length, 1, findings.join('\n'))

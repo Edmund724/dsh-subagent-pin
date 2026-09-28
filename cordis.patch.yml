@@ -1,4 +1,4 @@
-# `@edmund724/dsh-subagent-pin`, two rows from one package:
+# `dsh-subagent-pin`, two rows from one package:
 # - `subagent-pin`: give delegations that name no route the default route of the
 #   models checked in Settings (policy table: README 「策略」).
 # - `opencode-header`: carry each conversation's own id to OpenCode Go in
@@ -8,8 +8,8 @@
 # while each row is named for its own feature.
 - insert:
     - id: subagent-pin
-      name: '@edmund724/dsh-subagent-pin/subagent-pin'
+      name: 'dsh-subagent-pin/subagent-pin'
       config:
         source: settings
     - id: opencode-header
-      name: '@edmund724/dsh-subagent-pin/opencode-header'
+      name: 'dsh-subagent-pin/opencode-header'

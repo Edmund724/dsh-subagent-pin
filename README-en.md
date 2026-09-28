@@ -13,12 +13,12 @@ Turning the checkmarks into the default of every delegation is only possible ins
 ## Install
 
 1. `git clone https://github.com/Edmund724/dsh-subagent-pin.git <clone directory>`, then run `npm install` in it
-2. In the `dependencies` of `~/.dsh/profiles/<profile>/package.json`, write `"@edmund724/dsh-subagent-pin": "link:<absolute clone path>"`
+2. In the `dependencies` of `~/.dsh/profiles/<profile>/package.json`, write `"dsh-subagent-pin": "link:<absolute clone path>"`
 3. Append the mount row to `~/.dsh/profiles/<profile>/cordis.patch.yml` — the row name is **that row's own address** (DSH reads its title, description, and icon from it, so `subagent-pin` mounts `…/subagent-pin` rather than the package root); the row's `config` is this plugin's settings form: `source` / `defaultModel` / `reasoningEffort` — the Settings page writes exactly it; omit it and every value is the schema default:
 
 ```yaml
 - id: subagent-pin
-  name: '@edmund724/dsh-subagent-pin/subagent-pin'
+  name: 'dsh-subagent-pin/subagent-pin'
   config:
     source: settings
 ```
@@ -66,7 +66,7 @@ The row ships no `config`: the four keys below are all optional and their schema
 
 ```yaml
 - id: opencode-header
-  name: '@edmund724/dsh-subagent-pin/opencode-header'
+  name: 'dsh-subagent-pin/opencode-header'
   config:
     enabled: true
     headerName: x-opencode-session
@@ -84,7 +84,7 @@ The two blocks below are **examples: every writable key**, not the shipped conte
 
 ```yaml
 - id: subagent-pin
-  name: '@edmund724/dsh-subagent-pin/subagent-pin'
+  name: 'dsh-subagent-pin/subagent-pin'
   config:
     source: settings            # default
     defaultModel:               # optional; defaults to the first Settings model
@@ -97,7 +97,7 @@ Example two, the static mode, for a Host without the Settings row:
 
 ```yaml
 - id: subagent-pin
-  name: '@edmund724/dsh-subagent-pin/subagent-pin'
+  name: 'dsh-subagent-pin/subagent-pin'
   config:
     source: pinned
     provider: <provider-id>
@@ -117,7 +117,7 @@ Editing the file has no effect on a running Harness: DSH caches each plugin modu
 
 ## Rollback
 
-Disable `@edmund724/dsh-subagent-pin` with `plugin_manager`'s `set_bundle`, or delete it with `remove_bundle`. Disabling disposes the wrapper in the running process: the seam is unwrapped and children inherit the delegating agent's route again. No profile patch and no preset was modified for this plugin; removing it leaves the composition exactly as it was.
+Disable `dsh-subagent-pin` with `plugin_manager`'s `set_bundle`, or delete it with `remove_bundle`. Disabling disposes the wrapper in the running process: the seam is unwrapped and children inherit the delegating agent's route again. No profile patch and no preset was modified for this plugin; removing it leaves the composition exactly as it was.
 
 ## Further reading
 
