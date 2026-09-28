@@ -15,8 +15,12 @@
  *
  * The narrowing is the contract, and it is testable without a Host:
  *
- * - The header is attached only inside an `llm/stream` scope. The subscription
- *   runs the continuation in an `AsyncLocalStorage`, and the returned iterable
+ * - The header is attached only inside an `llm/stream` scope. The subscription is
+ *   registered `{ global: true }`: Cordis drops a listener whose isolation scope
+ *   for the emitting service differs from the emitter's, `llm/stream` is emitted
+ *   by the llm runtime as itself, so a bundle that isolates `llm` would
+ *   otherwise silence this row for its whole subtree. The subscription runs the
+ *   continuation in an `AsyncLocalStorage`, and the returned iterable
  *   is re-entered per pull — a streaming adapter reaches its transport when the
  *   consumer pulls, not when the continuation returns.
  * - Only `POST` requests count. Discovery's `GET {baseURL}/models`, web fetch,
@@ -290,10 +294,14 @@ export function applyWith(ctx, config, deps = {}) {
     createHandler({ headerName: resolved.headerName, providers: resolved.providers, hosts: resolved.hosts, realFetch: (input, init) => original(input, init), als })
   install(surface, handler, original)
 
-  ctx.on('llm/stream', (options, next) => {
-    const store = { provider: options?.provider, sessionId: options?.sessionId }
-    return inScope(als, store, als.run(store, () => next()))
-  })
+  ctx.on(
+    'llm/stream',
+    (options, next) => {
+      const store = { provider: options?.provider, sessionId: options?.sessionId }
+      return inScope(als, store, als.run(store, () => next()))
+    },
+    { global: true },
+  )
 
   ctx.effect?.(() => () => uninstall(surface))
 

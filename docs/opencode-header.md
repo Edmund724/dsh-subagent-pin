@@ -16,6 +16,11 @@ OpenCode Go 从 2026-09-15 起要求每个推理请求带 `x-opencode-session`�
 不出机器。上游 pi-ai 从 0.86.0 起也带同类逻辑，DSH 还没升依赖，且手写 `api:` 的路由
 本来就不经过那段逻辑 —— 这一点 README「OpenCode Go 的会话头」按事实写清了。
 
+pi-ai 自己那套不是替代品：它只在模型 `compat.sendSessionAffinityHeaders` 打开时才发头，
+发的是 `x-session-affinity`（Anthropic 形状）或 `x-session-id`／`session_id`（OpenAI
+形状），而且**值是原始会话 id**；gateway 要的 `x-opencode-session` 在 0.85.1 的整棵依赖里
+一次都没出现，opencode-go 的 catalog 里也没有一个模型开这个开关。
+
 ## 作用域：只有这些请求会变
 
 一次请求被改写，必须同时满足：它在一次 `llm/stream` 的作用域里、它是 `POST`、
@@ -26,6 +31,11 @@ OpenCode Go 从 2026-09-15 起要求每个推理请求带 `x-opencode-session`�
 两个匹配是「或」的关系，因为 provider id 与它实际落到的域名是两件独立的事实：
 手写路由可能两者只对上一个。默认只认 `opencode` 前缀与 `opencode.ai`（含子域，
 `opencode.ai.evil.test` 不算）。
+
+作用域本身也要求订阅真的收得到事件，所以这条 `llm/stream` 带 `{ global: true }`：
+Cordis 按**发出事件的服务**所在的隔离作用域过滤监听器，而 `llm/stream` 由 llm 运行时
+以自身为 `this` 发出 —— 一旦有 bundle 把 `llm` isolate 进自己的作用域，不带这个选项的
+监听器就再收不到（DSH 自己的 `llm/stream` 监听器同样带着它）。
 
 ## 值：由会话 id 派生
 

@@ -120,6 +120,6 @@ Disable `@edmund724/dsh-subagent-pin` with `plugin_manager`'s `set_bundle`, or d
 ## Further reading
 
 - [The seam and the Host contract](docs/seam.md) — why the wrapper lives on descriptors, what activation checks, and what a capability downgrade warns about.
-- [Tests and live checks](docs/verification.md) — the 160 unit tests by file, how to use `verify`, and the checklist to run after a Harness upgrade.
+- [Tests and live checks](docs/verification.md) — the 165 unit tests by file, how to use `verify`, and the checklist to run after a Harness upgrade.
 - [The OpenCode Go session header](docs/opencode-header.md) — the header row's scope, where its value comes from, its four config keys and how to check it.
 - [The glossary](CONTEXT.md) — the four decisions and the two exemption reasons; read it before touching the policy.

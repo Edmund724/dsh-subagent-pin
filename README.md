@@ -120,6 +120,6 @@ OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会
 ## 深入阅读
 
 - [接缝与 Host 契约](docs/seam.md) —— 包装为什么落在 descriptor 上、激活时检查什么、能力退化时警告什么。
-- [测试与现场核对](docs/verification.md) —— 160 项单元测试的逐文件拆分、`verify` 的用法、Harness 升级后的核对表。
+- [测试与现场核对](docs/verification.md) —— 165 项单元测试的逐文件拆分、`verify` 的用法、Harness 升级后的核对表。
 - [OpenCode Go 的会话头](docs/opencode-header.md) —— 会话头那行的作用域、值的来源、四个配置键与核对方法。
 - [领域词表](CONTEXT.md) —— 四种决定与两类豁免原因的定义，改策略前先读。

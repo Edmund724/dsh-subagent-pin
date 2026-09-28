@@ -15,8 +15,9 @@
  * override or add expectations the log cannot supply.
  *
  * Children are found in the delegating session's `subagent/catalog` events and
- * resolved to the sibling directory the Host writes beside it; `--child` verifies
- * one log on its own.
+ * resolved to the sibling directory the Host writes beside it — by directory,
+ * not by file name, because the format version is the Host's and lives there;
+ * `--child` verifies one log on its own.
  *
  * Usage:
  *   node verify-session.mjs --lead <lead log> [--child <child log>]
@@ -29,7 +30,7 @@
  * @module @edmund724/dsh-subagent-pin/tools/verify-session
  */
 
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 
 import { readSessionLog } from './read-session.mjs'
@@ -78,14 +79,41 @@ function descriptorRoute(descriptor) {
   }
 }
 
+/** One session log, whatever format version its name carries. */
+const SESSION_LOG = /^session\.v(\d+)\.jsonl\.zstd$/u
+
+/**
+ * The newest session log in one session directory, or nothing when it holds none.
+ *
+ * The version suffix belongs to the Host's session format, not to this tool, so
+ * the directory is asked rather than the name assumed: a run that writes a
+ * version this tool has never heard of is still verified. Nothing else in the
+ * directory is a session log, so a backup or a partial file is never read as one.
+ */
+function childLog(directory) {
+  let names
+  try {
+    names = readdirSync(directory)
+  } catch {
+    return undefined
+  }
+  return names
+    .filter((name) => SESSION_LOG.test(name))
+    .sort((a, b) => Number(a.match(SESSION_LOG)[1]) - Number(b.match(SESSION_LOG)[1]))
+    .at(-1)
+}
+
 /** Every child one run delegated to, each with the log the Host writes beside its own. */
 function childrenOf(leadFile, events, only) {
   if (only !== undefined) return [{ label: basename(dirname(only)), file: only }]
-  return eventsOfType(events, 'subagent/catalog').map(({ data }) => ({
-    label: data.label ?? 'unlabelled',
-    mode: data.mode,
-    file: join(dirname(leadFile), '..', data.childId, 'session.v4.jsonl.zstd'),
-  }))
+  return eventsOfType(events, 'subagent/catalog').map(({ data }) => {
+    const directory = join(dirname(leadFile), '..', data.childId)
+    return {
+      label: data.label ?? 'unlabelled',
+      mode: data.mode,
+      file: join(directory, childLog(directory) ?? 'session.v?.jsonl.zstd'),
+    }
+  })
 }
 
 /** One check, plus the shape a diagnostic needs to explain it. */

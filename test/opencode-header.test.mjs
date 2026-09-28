@@ -8,11 +8,15 @@
  * is either in scope and carries this conversation's id, or is byte-identical to
  * what the caller passed. Nothing here needs a Host, a network, or the real
  * `globalThis.fetch`; the desktop-runtime half is the checkout table in
- * `docs/verification.md`.
+ * `docs/verification.md`. The one real Cordis context below is there because the
+ * subscription's reach is a Cordis fact, not an opinion: a listener is filtered
+ * by the emitting service's isolation scope.
  */
 import assert from 'node:assert/strict'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { test } from 'node:test'
+
+import { Context, Service } from '@deepseek-ai/cordis'
 
 import {
   Config,
@@ -63,11 +67,13 @@ function probe({ als = new AsyncLocalStorage(), config = {}, realFetch } = {}) {
 /** The Host surface the row actually uses, faked down to what it reads. */
 function fakeCtx() {
   const handlers = new Map()
+  const options = new Map()
   const disposers = []
   const logs = []
   return {
-    on(name, listener) {
+    on(name, listener, opts) {
       handlers.set(name, listener)
+      options.set(name, opts)
       return () => handlers.delete(name)
     },
     effect(callback) {
@@ -75,6 +81,7 @@ function fakeCtx() {
     },
     logger: { info: (message) => logs.push(message), warn: (message) => logs.push(message), error: (message) => logs.push(message) },
     listener: (name) => handlers.get(name),
+    listenerOptions: (name) => options.get(name),
     logs,
     dispose() {
       for (const dispose of disposers.splice(0).reverse()) dispose()
@@ -331,6 +338,54 @@ test('the row subscribes, patches once, and restores the transport at the last d
   assert.equal(surface.fetch, patched, 'one live reference still needs the patch')
   second.dispose()
   assert.equal(surface.fetch, original, 'the last dispose must restore the original')
+})
+
+test('the subscription is global, so no isolation scope can silence it', () => {
+  // `llm/stream` is emitted by the llm runtime *as itself* (`ctx.waterfall(this,
+  // 'llm/stream', …)`), and Cordis drops a listener whose isolation key for that
+  // service differs from the emitter's. A row mounted in another bundle's scope
+  // would therefore go silent without the option — which is why DSH's own
+  // `llm/stream` listeners pass the same one.
+  const surface = { fetch: async () => ({ ok: true }) }
+  const ctx = fakeCtx()
+  applyWith(ctx, {}, { surface })
+  assert.deepEqual(ctx.listenerOptions('llm/stream'), { global: true })
+})
+
+test('an llm runtime isolated into another scope still reaches the row', async () => {
+  // The same fact, end to end: the emitter below lives in `ctx.isolate('llm')`,
+  // the row is mounted on the root, and the request must still carry the id.
+  const root = new Context()
+  const scoped = root.isolate('llm')
+  class Llm extends Service {
+    constructor(ctx) {
+      super(ctx, 'llm')
+    }
+    stream(options, next) {
+      return this.ctx.waterfall(this, 'llm/stream', options, next)
+    }
+  }
+  const service = new Llm(scoped)
+
+  const calls = []
+  const surface = {
+    fetch: async (input, init) => {
+      calls.push({ input, init })
+      return { ok: true }
+    },
+  }
+  applyWith(root, {}, { surface })
+
+  const stream = service.stream({ provider: 'opencodego', sessionId: SCOPE.sessionId }, () =>
+    (async function* adapter() {
+      await surface.fetch(MESSAGES_URL, { method: 'POST' })
+      yield 'chunk'
+    })(),
+  )
+  for await (const _ of stream) void _
+
+  assert.equal(calls.length, 1, 'the row must hear an llm/stream emitted from another isolation scope')
+  assert.equal(new Headers(calls[0].init.headers).get('x-opencode-session'), VALUE)
 })
 
 test('a disabled row patches nothing and subscribes to nothing', () => {

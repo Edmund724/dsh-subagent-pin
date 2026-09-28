@@ -44,9 +44,11 @@ const header = (route) => ({ type: 'request/header', data: { reason: 'initial', 
  * A sessions directory holding one delegating session and one child.
  *
  * The child's log is a sibling of the lead's, which is where the Host puts it
- * and where the tool derives it from the catalog entry.
+ * and where the tool derives it from the catalog entry. Its name is a parameter
+ * because the format version is part of that name, and `extra` writes further
+ * files into the same child directory.
  */
-function fixture(t, { child, childId = 'child-1', descriptor } = {}) {
+function fixture(t, { child, childId = 'child-1', descriptor, childName = 'session.v4.jsonl.zstd', extra = [] } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'dsh-pin-verify-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const lead = join(root, '--project--', 'lead-session', 'session.v4.jsonl.zstd')
@@ -56,8 +58,9 @@ function fixture(t, { child, childId = 'child-1', descriptor } = {}) {
     { type: 'subagent/catalog', data: { version: 0, childId, mode: descriptor?.mode ?? 'continuable', label: 'probe' } },
   ])
   if (child !== undefined) {
-    writeLog(join(root, '--project--', childId, 'session.v4.jsonl.zstd'), [...child(descriptor)])
+    writeLog(join(root, '--project--', childId, childName), [...child(descriptor)])
   }
+  for (const [name, events] of extra) writeLog(join(root, '--project--', childId, name), events)
   return lead
 }
 
@@ -140,6 +143,31 @@ test('a child named by the catalog but missing from disk fails instead of crashi
   const result = verifySessionLogs({ lead: fixture(t, {}) })
   assert.equal(result.ok, false)
   assert.match(check(result, 'child "probe" log is readable').observed, /child-1/)
+})
+
+test('a child log under another format version is found without naming the version', (t) => {
+  // The version suffix is the Host's session format, not this tool's business:
+  // a run that writes `session.v5` must be verified like the `v4` ones.
+  const result = verifySessionLogs({ lead: fixture(t, { child: pinnedChild, childName: 'session.v5.jsonl.zstd' }) })
+  assert.equal(result.ok, true)
+  assert.equal(check(result, 'child "probe" request/header route').observed.model, DEFAULT_ROUTE.model)
+})
+
+test('the newest version in the child directory is the one read', (t) => {
+  // Two logs in one session directory: the live format is the highest version,
+  // which `v10` is and lexicographic ordering is not.
+  const lead = fixture(t, {
+    child: pinnedChild,
+    childName: 'session.v10.jsonl.zstd',
+    extra: [['session.v4.jsonl.zstd', [header(LEAD_ROUTE)]]],
+  })
+  assert.equal(verifySessionLogs({ lead }).ok, true)
+})
+
+test('a file that is not a session log is not read as one', (t) => {
+  const result = verifySessionLogs({ lead: fixture(t, { child: pinnedChild, childName: 'session.v4.jsonl.zstd.backup' }) })
+  assert.equal(result.ok, false)
+  assert.match(check(result, 'child "probe" log is readable').note, /not found/)
 })
 
 test('the CLI prints one line per check and exits zero on a passing run', (t) => {
