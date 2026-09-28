@@ -13,6 +13,13 @@
  * the only place left is the process transport, narrowed to exactly the
  * requests a model call makes.
  *
+ * pi-ai's own session headers are no substitute: its per-model `compat` path
+ * sends the raw id under its own names, and the 0.86.0 catalog wrapper — the one
+ * path that sends `x-opencode-session` at all — sends the raw id as well. Both
+ * cases, with what each one requires, are in `docs/opencode-header.md`; this row
+ * is the only one that sends the gateway's name *and* a value derived from the
+ * id.
+ *
  * The narrowing is the contract, and it is testable without a Host:
  *
  * - The header is attached only inside an `llm/stream` scope. The subscription is

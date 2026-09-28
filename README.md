@@ -56,7 +56,7 @@ OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会
 
 派生是纯函数，这一行因此**不存任何东西**：没有映射表要写、要清理、要防并发，冷恢复也不用读回什么 —— 会话 id 由 DSH 自己持久化，恢复后同一个 id 推出同一个值。想把网关日志里看到的值对回本地会话，用同一个函数算一遍即可（刻意不加盐，保持可复现）。
 
-**上游已经修好了，是依赖没升。** pi-ai 从 `0.86.0` 起自带 `withOpenCodeSessionHeader`：它把 `x-opencode-session` 设成这次请求自己的 `options.sessionId`，已经带这个头就不覆盖。DSH 仍钉 `@earendil-works/pi-ai ^0.85.1`（`^0.85.1` = `>=0.85.1 <0.86.0`，0.86/0.87 都被排除），master 上没有一处引用这段逻辑，也没有带它的 release —— 所以这一行现在补的是 DSH 升级前的缺口。**但光升级也够不到本环境这条路由**：那个 wrapper 包的是 catalog 工厂，而 `opencodego` 手写了 `api: anthropic-messages`，走 `PROTOCOLS` 现场构造 provider，不经过 catalog。DSH 升级之后这一行还需不需要，取决于这条路由继续手写 `api:` 还是改回 catalog 形态。
+**上游已经修好了，是依赖没升。** pi-ai 从 `0.86.0` 起自带 `withOpenCodeSessionHeader`：它把 `x-opencode-session` 设成这次请求自己的 `options.sessionId`，已经带这个头就不覆盖。DSH 仍钉 `@earendil-works/pi-ai ^0.85.1`（`^0.85.1` = `>=0.85.1 <0.86.0`，0.86/0.87 都被排除），master 上没有一处引用这段逻辑，也没有带它的 release —— 所以这一行现在补的是 DSH 升级前的缺口。**但光升级也够不到本环境这条路由**：那个 wrapper 包的是 catalog 工厂，而 `opencodego` 手写了 `api: anthropic-messages`，走 `PROTOCOLS` 现场构造 provider，不经过 catalog。所以这一行不是「等 DSH 升级就能撤」：那条 wrapper 发的是**原始** `options.sessionId`，本行发的是派生值（原始 id 不出机器）；pi-ai 另一条按模型 `compat` 发的会话头，连头名都不是网关要的这个，catalog 里也没有模型开它（逐个情况见 [docs/opencode-header.md](docs/opencode-header.md)）。
 
 作用域收得很紧：一次请求要**同时**满足三条才改写 —— 在一次 `llm/stream` 的作用域里、方法是 `POST`、且 provider id 以某个配置前缀开头**或**落到的域名是配置的网关域名。所以 gateway 自己的 `GET {baseURL}/models` 发现请求、别的 provider 的全部流量、web fetch 与 MCP 都原样透传。判不出来（例如 session id 含非法字符）也透传：不会让一个坏 id 把健康的模型调用变成硬失败。
 

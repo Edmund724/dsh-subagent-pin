@@ -16,10 +16,24 @@ OpenCode Go 从 2026-09-15 起要求每个推理请求带 `x-opencode-session`�
 不出机器。上游 pi-ai 从 0.86.0 起也带同类逻辑，DSH 还没升依赖，且手写 `api:` 的路由
 本来就不经过那段逻辑 —— 这一点 README「OpenCode Go 的会话头」按事实写清了。
 
-pi-ai 自己那套不是替代品：它只在模型 `compat.sendSessionAffinityHeaders` 打开时才发头，
-发的是 `x-session-affinity`（Anthropic 形状）或 `x-session-id`／`session_id`（OpenAI
-形状），而且**值是原始会话 id**；gateway 要的 `x-opencode-session` 在 0.85.1 的整棵依赖里
-一次都没出现，opencode-go 的 catalog 里也没有一个模型开这个开关。
+## pi-ai 自己会不会带这个头
+
+会被问到的是「模型在 catalog 里，是不是就自动带头、不需要这一行了」。三条路都要看：
+
+| pi-ai 的会话头路径 | 触发条件 | 头名 | 值 | 今天成立吗 |
+|---|---|---|---|---|
+| 按模型 `compat.sendSessionAffinityHeaders`（0.85.1 起就有） | 该模型把这个开关打开 | `x-session-affinity`；OpenAI 形状是 `x-client-request-id` + `x-session-affinity`，其中 openai 再加 `session_id`、openrouter 换 `x-session-id` | **原始** `sessionId` | 不成立：opencode-go 的 catalog 里没有一个模型开这个开关，本环境这条手写路由也没有 `compat` |
+| catalog 工厂 wrapper `withOpenCodeSessionHeader`（0.86.0 起） | 路由走 pi-ai 的 catalog 工厂 | `x-opencode-session` | **原始** `options.sessionId` | 不成立：DSH 钉 `^0.85.1`，且本环境路由手写了 `api:`，不经过 catalog |
+| 其余情况 | — | 不发任何会话头 | — | 今天的实装状态 |
+
+所以「进了 catalog 就会自动带头」不成立；两条真会发头的路，发出去的都是**原始 id**。
+本行承诺两件事 —— 头名是网关要的那个、值是派生值（原始 id 不出机器）—— 没有任何一条
+pi-ai 路径能同时满足，这就是它不构成替代的原因。
+
+三条路的位置都在随包 Host 的 `dsh/node_modules/@earendil-works/pi-ai@0.85.1` 里读到：
+`dist/api/anthropic-messages.js`（默认 `sendSessionAffinityHeaders ?? false` 在 124 行，
+发出在 725 行）、`dist/api/openai-completions.js`（发出在 557-567 行，默认 `false` 在
+1309 行）、`dist/providers/data/opencode-go.json`（27 个模型的 `compat` 里没有这个键）。
 
 ## 作用域：只有这些请求会变
 
