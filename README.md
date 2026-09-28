@@ -52,7 +52,9 @@ Settings 的「子代理模型」行是一份权限清单加发现工具：它�
 
 ## OpenCode Go 的会话头
 
-OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会话自己的** id。以前这条头写死在路由配置里 —— 全机器一个值，所有会话与子代理共用；本包第二行 `opencode-session` 把它换成当前会话的 id（顶层形如 `session-3f1c…`，子代理是裸 UUID，两种形状网关都接受），静态头则应该从路由里删掉。
+OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会话自己的**标识。以前这条头写死在路由配置里 —— 全机器一个值，所有会话与子代理共用；本包第二行 `opencode-session` 把它换成当前会话的**派生值**：拿会话 id 做一次 SHA-256、取前 16 字节、按 v4 UUID 形状输出。值只由会话 id 决定，所以同一个会话每次都相同、不同会话必不相同，而本地会话 id 本身不出机器（网关被实测接受过 `session-<uuid>` 与裸 UUID，因此沿用 UUID 形状）。静态头则应该从路由里删掉。
+
+派生是纯函数，这一行因此**不存任何东西**：没有映射表要写、要清理、要防并发，冷恢复也不用读回什么 —— 会话 id 由 DSH 自己持久化，恢复后同一个 id 推出同一个值。想把网关日志里看到的值对回本地会话，用同一个函数算一遍即可（刻意不加盐，保持可复现）。
 
 **上游已经修好了，是依赖没升。** pi-ai 从 `0.86.0` 起自带 `withOpenCodeSessionHeader`：它把 `x-opencode-session` 设成这次请求自己的 `options.sessionId`，已经带这个头就不覆盖。DSH 仍钉 `@earendil-works/pi-ai ^0.85.1`（`^0.85.1` = `>=0.85.1 <0.86.0`，0.86/0.87 都被排除），master 上没有一处引用这段逻辑，也没有带它的 release —— 所以这一行现在补的是 DSH 升级前的缺口。**但光升级也够不到本环境这条路由**：那个 wrapper 包的是 catalog 工厂，而 `opencodego` 手写了 `api: anthropic-messages`，走 `PROTOCOLS` 现场构造 provider，不经过 catalog。DSH 升级之后这一行还需不需要，取决于这条路由继续手写 `api:` 还是改回 catalog 形态。
 
@@ -118,6 +120,6 @@ OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会
 ## 深入阅读
 
 - [接缝与 Host 契约](docs/seam.md) —— 包装为什么落在 descriptor 上、激活时检查什么、能力退化时警告什么。
-- [测试与现场核对](docs/verification.md) —— 154 项单元测试的逐文件拆分、`verify` 的用法、Harness 升级后的核对表。
+- [测试与现场核对](docs/verification.md) —— 158 项单元测试的逐文件拆分、`verify` 的用法、Harness 升级后的核对表。
 - [OpenCode Go 的会话头](docs/opencode-session.md) —— 会话头那行的作用域、值的来源、四个配置键与核对方法。
 - [领域词表](CONTEXT.md) —— 四种决定与两类豁免原因的定义，改策略前先读。

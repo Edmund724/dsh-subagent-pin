@@ -52,7 +52,9 @@ Update: `git pull && npm install` → restart the Harness (a host plugin caches 
 
 ## The OpenCode Go session header
 
-OpenCode Go requires every inference request to carry `x-opencode-session`, whose value is **that conversation's own** id. The header used to be hard-coded in the route config — one value for the whole machine, shared by every conversation and every child. This package's second row, `opencode-session`, replaces it with the current conversation's id (at the top level `session-3f1c…`, for a child a bare UUID; the gateway accepts both), and the static header belongs out of the route.
+OpenCode Go requires every inference request to carry `x-opencode-session`, whose value identifies **that conversation**. The header used to be hard-coded in the route config — one value for the whole machine, shared by every conversation and every child. This package's second row, `opencode-session`, replaces it with a **value derived from** the conversation's id: one SHA-256, first 16 bytes, emitted in the v4 UUID shape. The value depends on nothing but the id, so one conversation always derives the same value and two never collide, while the local session id itself leaves the machine (the gateway has been observed to accept `session-<uuid>` and a bare UUID, which is why the UUID shape is kept). The static header belongs out of the route.
+
+Because the derivation is a pure function, this row **stores nothing**: there is no mapping to write, prune or guard against concurrent writers, and cold resume reads nothing back — DSH persists the session id, and the same id derives the same value. To reconcile a value seen in the gateway's logs with a local session, run the same function (deliberately unsalted, so it stays reproducible).
 
 **Upstream already fixed this; the dependency was not bumped.** Since `0.86.0` pi-ai carries `withOpenCodeSessionHeader`, which sets `x-opencode-session` from that request's own `options.sessionId` and leaves an existing header alone. DSH still pins `@earendil-works/pi-ai ^0.85.1` (`^0.85.1` = `>=0.85.1 <0.86.0`, which excludes 0.86 and 0.87), references that logic nowhere on master, and ships no release carrying it — so this row fills the gap until DSH upgrades. **A bump alone would still not reach this environment's route**: that wrapper wraps the catalog factories, while `opencodego` hand-declares `api: anthropic-messages` and builds its provider from the `PROTOCOLS` table, never touching the catalog. Whether this row stays necessary after a DSH upgrade depends on whether the route keeps declaring `api:` or returns to the catalog shape.
 
@@ -118,6 +120,6 @@ Disable `@edmund724/dsh-subagent-pin` with `plugin_manager`'s `set_bundle`, or d
 ## Further reading
 
 - [The seam and the Host contract](docs/seam.md) — why the wrapper lives on descriptors, what activation checks, and what a capability downgrade warns about.
-- [Tests and live checks](docs/verification.md) — the 154 unit tests by file, how to use `verify`, and the checklist to run after a Harness upgrade.
+- [Tests and live checks](docs/verification.md) — the 158 unit tests by file, how to use `verify`, and the checklist to run after a Harness upgrade.
 - [The OpenCode Go session header](docs/opencode-session.md) — the header row's scope, where its value comes from, its four config keys and how to check it.
 - [The glossary](CONTEXT.md) — the four decisions and the two exemption reasons; read it before touching the policy.

@@ -33,7 +33,7 @@
 
 ## 会话头（session header）
 
-`opencode-session` 那一行在**一次 `llm/stream` 的作用域**内给 OpenCode Go 的请求写上的头：名字由 `headerName` 给（默认 `x-opencode-session`），值是**当前会话的 id**（`GenerateOptions.sessionId`：顶层是 `session-<uuid>`，子代理与 ACP 子是裸 UUID）。「在作用域内」由三条 gate 收窄 —— 在一次 `llm/stream` 里、方法是 `POST`、provider id 以配置前缀开头**或**落到的域名是配置的网关域名；三条同时成立才改写，其余请求原样透传（README「OpenCode Go 的会话头」）。
+`opencode-session` 那一行在**一次 `llm/stream` 的作用域**内给 OpenCode Go 的请求写上的头：名字由 `headerName` 给（默认 `x-opencode-session`），值由**当前会话的 id**（`GenerateOptions.sessionId`）派生 —— SHA-256 取前 16 字节，按 v4 UUID 形状输出。同一个会话 id 每次都推出同一个值，不同会话不碰撞，原始 id 不出机器；因为是纯函数，这一行不存任何状态，冷恢复也不需要读回。「在作用域内」由三条 gate 收窄 —— 在一次 `llm/stream` 里、方法是 `POST`、provider id 以配置前缀开头**或**落到的域名是配置的网关域名；三条同时成立才改写，其余请求原样透传（README「OpenCode Go 的会话头」）。
 
 落点为什么只能是进程传输层（逐个排除的选项）见 `.agents/notes/implemented/architecture/2026-09-28-请求头只能落在传输层.md`；做判断的那几个纯函数与不变量在 `opencode-session.js` 的文件头。
 

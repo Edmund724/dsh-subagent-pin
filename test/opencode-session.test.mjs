@@ -19,6 +19,7 @@ import {
   KNOWN_KEYS,
   applyWith,
   createHandler,
+  deriveSessionValue,
   inScope,
   isOpencodeHost,
   resolveConfig,
@@ -42,6 +43,9 @@ const SCOPE = {
   sessionId: 'session-11111111-1111-4111-8111-111111111111',
   provider: 'opencodego',
 }
+
+/** What that conversation's id derives to — the only value a request may carry. */
+const VALUE = deriveSessionValue(SCOPE.sessionId)
 
 const MESSAGES_URL = 'https://opencode.ai/zen/go/v1/messages'
 
@@ -147,6 +151,34 @@ test('a request is in scope by provider prefix, by gateway host, or both', () =>
   assert.equal(routeMatch(undefined, undefined, gate), false)
 })
 
+// ── the value ──────────────────────────────────────────────────────────────
+
+test('the value is a UUID-shaped digest, never the local session id', () => {
+  assert.match(VALUE, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u, 'the gateway is known to accept UUID-shaped values')
+  assert.notEqual(VALUE, SCOPE.sessionId)
+  assert.equal(VALUE.includes('11111111'), false, 'no part of the local id may survive')
+})
+
+test('the digest is pinned by a vector, so gateway logs stay reconcilable', () => {
+  // An operator maps an id seen in the gateway's logs back to a local session by
+  // running this same function; changing the digest silently would break that,
+  // so the algorithm is pinned rather than merely described.
+  assert.equal(deriveSessionValue('session-11111111-1111-4111-8111-111111111111'), '55314175-37be-4f99-bb40-b2cd5dae9a99')
+  assert.equal(deriveSessionValue('55d2c6ab-6ea3-4f1c-aca2-e84c659f5528'), '01c37b38-6572-49e2-9469-adc85ca8f97a')
+})
+
+test('one conversation keeps its value across requests, and two do not collide', async () => {
+  const { calls, handler, als } = probe()
+  await als.run(SCOPE, async () => {
+    await handler(MESSAGES_URL, { method: 'POST' })
+    await handler(MESSAGES_URL, { method: 'POST' })
+  })
+  await als.run({ ...SCOPE, sessionId: 'session-22222222-2222-4222-8222-222222222222' }, () => handler(MESSAGES_URL, { method: 'POST' }))
+  const seen = calls.map((call) => new Headers(call.init.headers).get('x-opencode-session'))
+  assert.deepEqual(seen.slice(0, 2), [VALUE, VALUE], 'the second turn of a conversation must reuse the value')
+  assert.notEqual(seen[2], VALUE, 'a different conversation must not land on the same value')
+})
+
 // ── what must not change ───────────────────────────────────────────────────
 
 test('a request outside any llm/stream scope is never touched', async () => {
@@ -188,7 +220,8 @@ test('an in-scope POST carries the conversation id, preserving every other heade
     }),
   )
   const headers = new Headers(calls[0].init.headers)
-  assert.equal(headers.get('x-opencode-session'), SCOPE.sessionId)
+  assert.equal(headers.get('x-opencode-session'), VALUE)
+  assert.notEqual(headers.get('x-opencode-session'), SCOPE.sessionId, 'the local id must not travel')
   assert.equal(headers.get('authorization'), 'Bearer x')
   assert.equal(headers.get('content-type'), 'application/json')
 })
@@ -196,7 +229,7 @@ test('an in-scope POST carries the conversation id, preserving every other heade
 test('a same-name header the route already carried is replaced', async () => {
   const { calls, handler, als } = probe()
   await als.run(SCOPE, () => handler(MESSAGES_URL, { method: 'POST', headers: { 'x-opencode-session': 'one-value-for-everyone' } }))
-  assert.equal(new Headers(calls[0].init.headers).get('x-opencode-session'), SCOPE.sessionId)
+  assert.equal(new Headers(calls[0].init.headers).get('x-opencode-session'), VALUE)
 })
 
 test('the rewrite never mutates the caller\'s objects', async () => {
@@ -213,16 +246,30 @@ test('a configured header name and gate are what the row uses', async () => {
     config: { headerName: 'x-session', providers: [], hosts: ['gateway.example'] },
   })
   await als.run({ ...SCOPE, provider: 'anything' }, () => handler('https://gateway.example/v1/messages', { method: 'POST' }))
-  assert.equal(new Headers(calls[0].init.headers).get('x-session'), SCOPE.sessionId)
+  assert.equal(new Headers(calls[0].init.headers).get('x-session'), VALUE)
 })
 
 // ── failure discipline ─────────────────────────────────────────────────────
 
-test('a session id the Headers constructor refuses fails open, not hard', async () => {
+test('a session id full of header syntax arrives as a harmless value', async () => {
+  // The digest is what makes this true: the raw id never reaches `Headers`, so
+  // even an id carrying CRLF cannot inject a second header — and the row no
+  // longer has to choose between failing hard and dropping the header.
+  const raw = 'bad\r\nx-injected: 1'
   const { calls, handler, als } = probe()
-  await als.run({ ...SCOPE, sessionId: 'bad\r\nx-injected: 1' }, () => handler(MESSAGES_URL, { method: 'POST' }))
+  await als.run({ ...SCOPE, sessionId: raw }, () => handler(MESSAGES_URL, { method: 'POST' }))
+  const headers = new Headers(calls[0].init.headers)
+  assert.equal(headers.get('x-opencode-session'), deriveSessionValue(raw))
+  assert.match(headers.get('x-opencode-session'), /^[0-9a-f-]{36}$/u)
+  assert.equal(headers.get('x-injected'), null)
+})
+
+test('a request the row cannot judge passes through as it was handed in', async () => {
+  const { calls, handler, als } = probe()
+  const init = { method: 'POST' }
+  await als.run(SCOPE, () => handler('not a url', init))
   assert.equal(calls.length, 1, 'the request still reaches the transport')
-  assert.equal(calls[0].init.headers, undefined, 'and carries no header the row could not build')
+  assert.equal(calls[0].init, init, 'and reaches it with the caller\'s own arguments')
 })
 
 test('a transport error is not swallowed by the fail-open path', async () => {
@@ -250,7 +297,7 @@ test('a transport reached only on the first pull still sees the scope', async ()
     void _
   }
   assert.equal(calls.length, 1, 'the lazy transport must have run')
-  assert.equal(new Headers(calls[0].init.headers).get('x-opencode-session'), SCOPE.sessionId)
+  assert.equal(new Headers(calls[0].init.headers).get('x-opencode-session'), VALUE)
 })
 
 test('two concurrent scopes do not share an id', async () => {
@@ -262,7 +309,7 @@ test('two concurrent scopes do not share an id', async () => {
     })
   await Promise.all([run('session-aaaa', 5), run('session-bbbb', 1)])
   const seen = calls.map((call) => new Headers(call.init.headers).get('x-opencode-session')).sort()
-  assert.deepEqual(seen, ['session-aaaa', 'session-bbbb'])
+  assert.deepEqual(seen, [deriveSessionValue('session-aaaa'), deriveSessionValue('session-bbbb')].sort())
 })
 
 // ── the row ────────────────────────────────────────────────────────────────
@@ -326,7 +373,7 @@ test('the row carries the scope through a lazy adapter stream', async () => {
   for await (const chunk of stream) chunks.push(chunk)
 
   assert.deepEqual(chunks, [{ type: 'finish' }], 'the stream must pass through untouched')
-  assert.equal(new Headers(calls[0].init.headers).get('x-opencode-session'), 'session-abc')
+  assert.equal(new Headers(calls[0].init.headers).get('x-opencode-session'), deriveSessionValue('session-abc'))
 })
 
 test('the row leaves several concurrent conversations on their own ids', async () => {
@@ -334,8 +381,6 @@ test('the row leaves several concurrent conversations on their own ids', async (
   const calls = []
   const surface = {
     fetch: async (input, init) => {
-      const id = new Headers(init.headers).get('x-opencode-session')
-      await new Promise((resolve) => setTimeout(resolve, id.endsWith('1') ? 1 : 5))
       calls.push({ input, init })
       return { ok: true }
     },
@@ -343,17 +388,19 @@ test('the row leaves several concurrent conversations on their own ids', async (
   applyWith(ctx, {}, { surface })
   const listen = ctx.listener('llm/stream')
 
-  const run = (id) =>
-    listen({ provider: 'opencodego', sessionId: id }, () =>
+  const drain = async (id, delay) => {
+    const stream = listen({ provider: 'opencodego', sessionId: id }, () =>
       (async function* adapter() {
+        // The two conversations are deliberately staggered, so the second one
+        // reaches the transport while the first is still inside its scope.
+        await new Promise((resolve) => setTimeout(resolve, delay))
         await surface.fetch(MESSAGES_URL, { method: 'POST' })
         yield { type: 'finish' }
       })(),
     )
-  const drain = async (id) => {
-    for await (const _ of run(id)) void _
+    for await (const _ of stream) void _
   }
-  await Promise.all([drain('session-1'), drain('session-2')])
+  await Promise.all([drain('session-1', 5), drain('session-2', 1)])
   const seen = calls.map((call) => new Headers(call.init.headers).get('x-opencode-session')).sort()
-  assert.deepEqual(seen, ['session-1', 'session-2'])
+  assert.deepEqual(seen, [deriveSessionValue('session-1'), deriveSessionValue('session-2')].sort())
 })

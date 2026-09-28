@@ -25,9 +25,12 @@
  *   prefix *or* the resolved host is a configured gateway domain. Either match
  *   is enough: the provider id and the host it actually reaches are separate
  *   facts, and a hand-declared route may disagree with the catalog.
- * - The value is the conversation's own `sessionId` (`SessionHeader.id`), so it
- *   is stable across turns, resume, compaction and retries, and distinct per
- *   conversation, subagent child and ACP child.
+ * - The value is derived from the conversation's own `sessionId`
+ *   (`SessionHeader.id`): a UUID-shaped digest, because that is the one shape
+ *   this gateway has been observed to accept. Being a pure function of the id,
+ *   it is stable across turns, resume, compaction and retries and distinct per
+ *   conversation, subagent child and ACP child — while the local session id
+ *   itself never leaves the machine.
  * - A same-name header already on the request is replaced; nothing else is
  *   touched, and no caller-owned object is mutated.
  * - Everything that can fail while judging a request fails open to the original
@@ -43,6 +46,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { createHash } from 'node:crypto'
 
 import z from '@deepseek-ai/schemastery'
 
@@ -127,6 +131,35 @@ function withHeader(input, init, name, value) {
 }
 
 /**
+ * The value one conversation is identified by: a UUID-shaped digest of its
+ * session id.
+ *
+ * The gateway only ever needed "one stable value per conversation", and the raw
+ * DSH session id is that conversation's durable name — sending it would hand a
+ * third party a handle on the local session log. A digest keeps everything the
+ * gateway asks for (same conversation → same value, different conversations →
+ * different values, unguessable) and exposes none of the original.
+ *
+ * It is a pure function of the id, which is the whole reason there is no mapping
+ * table to keep: nothing is stored, so cold resume reads nothing back. DSH
+ * persists the session id, and the same id always derives the same value.
+ *
+ * The shape is a v4 UUID because that is the shape already observed to be
+ * accepted (`session-<uuid>` at the top level, a bare UUID for a child); the
+ * version and variant bits are set so nobody mistakes it for a real v4 the client
+ * generated. Unsalted on purpose: session ids are high-entropy UUIDs already, and
+ * leaving the digest reproducible is what lets an operator map an id seen in the
+ * gateway's logs back to a local session with this same function.
+ */
+export function deriveSessionValue(sessionId) {
+  const bytes = createHash('sha256').update(String(sessionId), 'utf8').digest().subarray(0, 16)
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = bytes.toString('hex')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+/**
  * Build the fetch-shaped handler at the row's seam.
  *
  * @param config - The row's resolved `headerName`, `providers` and `hosts`.
@@ -144,7 +177,7 @@ export function createHandler({ headerName, providers, hosts, realFetch, als }) 
       const target = describeTarget(input, init)
       if (target === undefined || target.method !== 'POST') return realFetch(input, init)
       if (!routeMatch(store.provider, target.url.hostname, gate)) return realFetch(input, init)
-      const value = typeof store.sessionId === 'string' && store.sessionId.length > 0 ? store.sessionId : undefined
+      const value = typeof store.sessionId === 'string' && store.sessionId.length > 0 ? deriveSessionValue(store.sessionId) : undefined
       if (value === undefined) return realFetch(input, init)
       args = withHeader(input, init, headerName, value)
     } catch {
