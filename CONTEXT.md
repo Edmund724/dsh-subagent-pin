@@ -25,11 +25,17 @@
 
 ## 配置接口（config interface）
 
-一行 `config` 可写什么的唯一**机器可读**声明，由 `config-schema.js` 导出的原生 Schemastery 图给出。DSH 在激活前用它校验整行（报错自带字段路径），`Config.listConfigs` 可把它投影成 JSON Schema。
+一行 `config` 可写什么的唯一**机器可读**声明：路由那行由 `config-schema.js` 导出的原生 Schemastery 图给出，会话头那行由 `opencode-session.js` 导出的同形状图给出。DSH 在激活前用它校验整行（报错自带字段路径），`Config.listConfigs` 可把它投影成 JSON Schema。
 
 分界线：**一个 schema 节点能表达的归 `config-schema.js`，表达不了的归 `plugin.js` 的 `resolveConfig()`。** 这条线为什么划在这里，见 `config-schema.js` 的 JSDoc。
 
 由此 `apply()` 的入参契约是**已经过 `Config` 校验的 config**（cordis 的 `resolveConfig` 负责这一步），默认值也由 `Config` 提供。
+
+## 会话头（session header）
+
+`opencode-session` 那一行在**一次 `llm/stream` 的作用域**内给 OpenCode Go 的请求写上的头：名字由 `headerName` 给（默认 `x-opencode-session`），值是**当前会话的 id**（`GenerateOptions.sessionId`：顶层是 `session-<uuid>`，子代理与 ACP 子是裸 UUID）。「在作用域内」由三条 gate 收窄 —— 在一次 `llm/stream` 里、方法是 `POST`、provider id 以配置前缀开头**或**落到的域名是配置的网关域名；三条同时成立才改写，其余请求原样透传（README「OpenCode Go 的会话头」）。
+
+落点为什么只能是进程传输层（逐个排除的选项）见 `.agents/notes/implemented/architecture/2026-09-28-请求头只能落在传输层.md`；做判断的那几个纯函数与不变量在 `opencode-session.js` 的文件头。
 
 ## Host 契约（host contract）
 

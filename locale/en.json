@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Subagent Pin",
-    "description": "Gives every fresh subagent delegation that names no route the configured LLM route."
+    "title": "Subagent Pin + OpenCode session header",
+    "description": "Gives every fresh subagent delegation that names no route the configured LLM route, and sends each conversation's own id in the x-opencode-session header OpenCode Go requires."
   }
 }

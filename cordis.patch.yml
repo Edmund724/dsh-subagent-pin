@@ -1,7 +1,12 @@
-# `@edmund724/dsh-subagent-pin`: give delegations that name no route the default
-# route of the models checked in Settings (policy table: README 「策略」).
+# `@edmund724/dsh-subagent-pin`, two rows from one package:
+# - `subagent-pin`: give delegations that name no route the default route of the
+#   models checked in Settings (policy table: README 「策略」).
+# - `opencode-session`: carry each conversation's own id to OpenCode Go in
+#   `x-opencode-session` (why the transport seam: docs/opencode-session.md).
 - insert:
     - id: subagent-pin
       name: '@edmund724/dsh-subagent-pin'
       config:
         source: settings
+    - id: opencode-session
+      name: '@edmund724/dsh-subagent-pin/opencode-session'

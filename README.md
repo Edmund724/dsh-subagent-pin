@@ -2,7 +2,7 @@
 
 [English](README-en.md) | **简体中文**
 
-> DeepSeek Harness 的 Host 插件：让 Settings「子代理模型」里勾选的模型，成为每一次**没有自己指定路由**的全新子代理委派的默认路由；指定了 `provider` 或 `model` 的委派原样放行。以 bundle 装进 profile（本环境：`desktop` profile，行 id `subagent-pin`），禁用即恢复原样。
+> DeepSeek Harness 的 Host 插件：让 Settings「子代理模型」里勾选的模型，成为每一次**没有自己指定路由**的全新子代理委派的默认路由；指定了 `provider` 或 `model` 的委派原样放行。同一个包还带第二行 `opencode-session`：把**每个会话自己的** id 送进 OpenCode Go 要求的 `x-opencode-session`。以 bundle 装进 profile（本环境：`desktop` profile，行 id `subagent-pin` 与 `opencode-session`），禁用即恢复原样。
 
 ## 为什么需要它
 
@@ -22,6 +22,8 @@ Settings 的「子代理模型」行是一份权限清单加发现工具：它�
   config:
     source: settings
 ```
+
+同一个包还会 insert 第二行 `opencode-session`（下一节）：走 `dsh.profile.bundles` 装本包时它随包生效，手写挂载行的话照上面的格式再加一行、不带 `config`。
 
 4. 在 `~/.dsh/profiles/<profile>` 执行 `pnpm install`，然后重启 Harness
 
@@ -48,9 +50,29 @@ Settings 的「子代理模型」行是一份权限清单加发现工具：它�
 
 **清单只决定默认项，不是许可证。** 指定了路由的委派归调用方负责：DSH 自己的 `subagent` 工具仍按该会话冻结的清单拦一次越界的显式路由 —— 那是工具层策略，本插件解不开也不该解；workflow `agent()` 这类绕过工具层的调用完全自负。两个例外（Fork 与进程外）都只适用于未指定路由的委派：`context: "fork"` 的 teammate 属于 Fork 例外，全新 teammate（默认 `freshProvider`）会被路由。
 
+## OpenCode Go 的会话头
+
+OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会话自己的** id。以前这条头写死在路由配置里 —— 全机器一个值，所有会话与子代理共用；本包第二行 `opencode-session` 把它换成当前会话的 id（顶层形如 `session-3f1c…`，子代理是裸 UUID，两种形状网关都接受），静态头则应该从路由里删掉。
+
+作用域收得很紧：一次请求要**同时**满足三条才改写 —— 在一次 `llm/stream` 的作用域里、方法是 `POST`、且 provider id 以某个配置前缀开头**或**落到的域名是配置的网关域名。所以 gateway 自己的 `GET {baseURL}/models` 发现请求、别的 provider 的全部流量、web fetch 与 MCP 都原样透传。判不出来（例如 session id 含非法字符）也透传：不会让一个坏 id 把健康的模型调用变成硬失败。
+
+随包不带 `config`：下面四个键都可选，schema 默认值就是安装形态（列表留空表示那一维不认领）：
+
+```yaml
+- id: opencode-session
+  name: '@edmund724/dsh-subagent-pin/opencode-session'
+  config:
+    enabled: true
+    headerName: x-opencode-session
+    providers: [opencode]
+    hosts: [opencode.ai]
+```
+
+这条头为什么只能长在进程传输层（逐个排除的选项）、怎么现场核对它真的生效，见「深入阅读」里的最后两篇。
+
 ## 配置
 
-随包配置就是 [`cordis.patch.yml`](cordis.patch.yml) 的那一节：`source: settings`，不设 `defaultModel`/`reasoningEffort`。字段权威是插件导出的 `Config`（`config-schema.js`）：DSH 激活前用它校验整行、报错带字段路径；`Config.listConfigs` 可把它投影成 JSON Schema，写配置前先查它。
+随包配置就是 [`cordis.patch.yml`](cordis.patch.yml) 里 `subagent-pin` 那一节：`source: settings`，不设 `defaultModel`/`reasoningEffort`。字段权威是路由这行导出的 `Config`（`config-schema.js`）：DSH 激活前用它校验整行、报错带字段路径；`Config.listConfigs` 可把它投影成 JSON Schema，写配置前先查它。会话头那行的接口在 `opencode-session.js`，键与默认值见上一节。
 
 下面两块是**示例：所有可写键**，不是随包内容。默认模式 —— 路由跟随 Settings：
 
@@ -94,5 +116,6 @@ Settings 的「子代理模型」行是一份权限清单加发现工具：它�
 ## 深入阅读
 
 - [接缝与 Host 契约](docs/seam.md) —— 包装为什么落在 descriptor 上、激活时检查什么、能力退化时警告什么。
-- [测试与现场核对](docs/verification.md) —— 129 项单元测试的逐文件拆分、`verify` 的用法、Harness 升级后的核对表。
+- [测试与现场核对](docs/verification.md) —— 154 项单元测试的逐文件拆分、`verify` 的用法、Harness 升级后的核对表。
+- [OpenCode Go 的会话头](docs/opencode-session.md) —— 会话头那行的作用域、值的来源、四个配置键与核对方法。
 - [领域词表](CONTEXT.md) —— 四种决定与两类豁免原因的定义，改策略前先读。

@@ -32,6 +32,7 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import { Config, KNOWN_KEYS } from '../config-schema.js'
+import { Config as SESSION_CONFIG, KNOWN_KEYS as SESSION_KEYS } from '../opencode-session.js'
 import { codeSpans, isPathShaped, lines, linkTargets } from '../test-support/document-tokens.mjs'
 import { ships } from '../test-support/package-files.mjs'
 
@@ -54,7 +55,30 @@ const ROUTE_KEYS = Object.keys(Config.dict.defaultModel.dict)
 const read = (name) => readFileSync(join(ROOT, name), 'utf8')
 
 /** What a packed copy contains, which is the second half of a link's claim. */
-const FILES = JSON.parse(read('package.json')).files
+const MANIFEST = JSON.parse(read('package.json'))
+
+/** The files a packed copy carries. */
+const FILES = MANIFEST.files
+
+/**
+ * The rows this package ships, and the schema each row's `config:` is held to.
+ *
+ * A README documents both rows, so the block's own `name:` decides which schema
+ * its keys are checked against. A block naming a row this file cannot place
+ * falls back to every key declared anywhere, which is still one-way and still
+ * catches a key no schema declares.
+ */
+const ROW_SCHEMAS = new Map([
+  [MANIFEST.name, { keys: KNOWN_KEYS, route: 'defaultModel', routeKeys: ROUTE_KEYS }],
+  [`${MANIFEST.name}/opencode-session`, { keys: SESSION_KEYS, route: null, routeKeys: [] }],
+])
+
+/** The schema a block falls back to when its row cannot be placed. */
+const ANY_ROW = {
+  keys: [...new Set([...KNOWN_KEYS, ...SESSION_KEYS])],
+  route: 'defaultModel',
+  routeKeys: ROUTE_KEYS,
+}
 
 /** These documents, each read as text, for the judgements that take a set of them. */
 const documents = (names) => names.map((name) => ({ name, text: read(name) }))
@@ -127,29 +151,49 @@ function configKeys(rows) {
   return keys
 }
 
-/** Every `config:` key of one README that `config-schema.js` does not declare. */
+/** The row name one yaml block declares beside its `config:`, if any. */
+function blockRowName(rows) {
+  for (const row of rows) {
+    const match = /^\s*-?\s*name:\s*['"]?([^'"\s]+)['"]?\s*$/.exec(row.text)
+    if (match !== null) return match[1]
+  }
+  return undefined
+}
+
+/**
+ * Every `config:` key of one README that the block's own row schema does not declare.
+ *
+ * The block's `name:` picks the schema, and a nested key is only legal under the
+ * route the schema names, so a key that belongs to the other row of this package
+ * is reported here instead of passing on the strength of its neighbour.
+ */
 function configKeyFindings(name, text) {
-  const keys = yamlBlocks(text).flatMap((block) => configKeys(block.rows))
-  if (keys.length === 0) return [`${name}: no \`config:\` key was found in a yaml fence, so this check proves nothing`]
+  const blocks = yamlBlocks(text)
+    .map((block) => ({ block, keys: configKeys(block.rows) }))
+    .filter(({ keys }) => keys.length > 0)
+  if (blocks.length === 0) return [`${name}: no \`config:\` key was found in a yaml fence, so this check proves nothing`]
 
   const findings = []
-  const top = Math.min(...keys.map((key) => key.indent))
-  for (const [index, key] of keys.entries()) {
-    if (key.indent === top) {
-      if (!KNOWN_KEYS.includes(key.name)) {
-        findings.push(`${name}:${key.number} writes config key "${key.name}", which config-schema.js does not declare (it declares ${KNOWN_KEYS.join(', ')})`)
+  for (const { block, keys } of blocks) {
+    const schema = ROW_SCHEMAS.get(blockRowName(block.rows)) ?? ANY_ROW
+    const top = Math.min(...keys.map((key) => key.indent))
+    for (const [index, key] of keys.entries()) {
+      if (key.indent === top) {
+        if (!schema.keys.includes(key.name)) {
+          findings.push(`${name}:${key.number} writes config key "${key.name}", which no schema of this package declares (this row declares ${schema.keys.join(', ')})`)
+        }
+        continue
       }
-      continue
-    }
-    // The only nesting the schema allows is a route under `defaultModel`, so
-    // a deeper key must belong to that route and be one of its two fields.
-    const owner = keys.slice(0, index).reverse().find((other) => other.indent === top)
-    if (owner?.name !== 'defaultModel') {
-      findings.push(`${name}:${key.number} nests "${key.name}" under "${owner?.name}", which is not a route`)
-      continue
-    }
-    if (!ROUTE_KEYS.includes(key.name)) {
-      findings.push(`${name}:${key.number} writes "${key.name}" under defaultModel, which is a { ${ROUTE_KEYS.join(', ')} } route`)
+      // The only nesting any row allows is a route under `defaultModel`, so a
+      // deeper key must belong to that route and be one of its fields.
+      const owner = keys.slice(0, index).reverse().find((other) => other.indent === top)
+      if (owner?.name !== schema.route) {
+        findings.push(`${name}:${key.number} nests "${key.name}" under "${owner?.name}", which is not a route`)
+        continue
+      }
+      if (!schema.routeKeys.includes(key.name)) {
+        findings.push(`${name}:${key.number} writes "${key.name}" under defaultModel, which is a { ${schema.routeKeys.join(', ')} } route`)
+      }
     }
   }
   return findings
@@ -339,6 +383,17 @@ test('a config key the schema does not declare is reported', () => {
 
   assert.equal(findings.length, 1, findings.join('\n'))
   assert.match(findings[0], /routeSource/)
+})
+
+test('a config key that belongs to the package\'s other row is reported', () => {
+  // The two rows' key sets are disjoint, and the block's `name:` is what decides
+  // which schema a key is checked against — a key borrowed from the neighbour
+  // must not pass on the strength of the block it sits in.
+  const text = `${read('README.md')}\n\n\`\`\`yaml\n- id: opencode-session\n  name: '@edmund724/dsh-subagent-pin/opencode-session'\n  config:\n    source: settings\n\`\`\`\n`
+  const findings = configKeyFindings('README.md', text)
+
+  assert.equal(findings.length, 1, findings.join('\n'))
+  assert.match(findings[0], /source/)
 })
 
 test('a decision word CONTEXT.md does not define is reported', () => {

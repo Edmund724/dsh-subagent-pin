@@ -2,7 +2,7 @@
 
 **English** | [简体中文](README.md)
 
-> A Host plugin for DeepSeek Harness: it makes the models checked in the Settings subagent-model row the default route of every fresh subagent delegation that names no route of its own, and passes a delegation that names `provider` or `model` through untouched. Installed as a bundle into a profile (in this environment: profile `desktop`, row `subagent-pin`); disabling it restores the original shape.
+> A Host plugin for DeepSeek Harness: it makes the models checked in the Settings subagent-model row the default route of every fresh subagent delegation that names no route of its own, and passes a delegation that names `provider` or `model` through untouched. The same package carries a second row, `opencode-session`, which sends **each conversation's own** id in the `x-opencode-session` header OpenCode Go requires. Installed as a bundle into a profile (in this environment: profile `desktop`, rows `subagent-pin` and `opencode-session`); disabling it restores the original shape.
 
 ## Why it is needed
 
@@ -22,6 +22,8 @@ Turning the checkmarks into the default of every delegation is only possible ins
   config:
     source: settings
 ```
+
+The same package also inserts a second row, `opencode-session` (next section): installing this package through `dsh.profile.bundles` brings it along, and a hand-written mount row follows the shape above with no `config`.
 
 4. Run `pnpm install` in `~/.dsh/profiles/<profile>`, then restart the Harness
 
@@ -48,9 +50,29 @@ Update: `git pull && npm install` → restart the Harness (a host plugin caches 
 
 **The list decides a default; it is not a licence.** A delegation that names a route belongs to its caller: DSH's own `subagent` tool still rejects an out-of-list named route once, against the list frozen into that session — that is tool-layer policy, which this plugin cannot lift and should not; callers that bypass the tools, such as workflow `agent()`, are entirely on their own. Both exceptions (fork and out-of-process) apply only to a delegation that names no route: a teammate spawned with `context: "fork"` falls under the fork exception, while a fresh teammate (the default `freshProvider`) is routed.
 
+## The OpenCode Go session header
+
+OpenCode Go requires every inference request to carry `x-opencode-session`, whose value is **that conversation's own** id. The header used to be hard-coded in the route config — one value for the whole machine, shared by every conversation and every child. This package's second row, `opencode-session`, replaces it with the current conversation's id (at the top level `session-3f1c…`, for a child a bare UUID; the gateway accepts both), and the static header belongs out of the route.
+
+The scope is narrow: a request is rewritten only when **all three** hold — it runs inside an `llm/stream` scope, its method is `POST`, and its provider id starts with a configured prefix **or** the host it reaches is a configured gateway domain. The gateway's own `GET {baseURL}/models` discovery call, every other provider's traffic, web fetch and MCP all pass through byte-identical. Anything the row cannot judge (a session id the `Headers` constructor refuses, say) also passes through: a bad id must never turn a healthy model call into a hard failure.
+
+The row ships no `config`: the four keys below are all optional and their schema defaults are the install (an empty list claims nothing on that axis):
+
+```yaml
+- id: opencode-session
+  name: '@edmund724/dsh-subagent-pin/opencode-session'
+  config:
+    enabled: true
+    headerName: x-opencode-session
+    providers: [opencode]
+    hosts: [opencode.ai]
+```
+
+Why the header can only live in the process transport (with the options ruled out), and how to check it is really in effect, are the last two entries of Further reading.
+
 ## Config
 
-The shipped config is the section in [`cordis.patch.yml`](cordis.patch.yml): `source: settings`, with neither `defaultModel` nor `reasoningEffort`. The field-level authority is the `Config` the plugin exports (`config-schema.js`): DSH validates the whole row against it before activation, with a field path in the message, and `Config.listConfigs` projects it into JSON Schema — query it before writing a config.
+The shipped config is the `subagent-pin` section of [`cordis.patch.yml`](cordis.patch.yml): `source: settings`, with neither `defaultModel` nor `reasoningEffort`. The field-level authority is the `Config` the route row exports (`config-schema.js`): DSH validates the whole row against it before activation, with a field path in the message, and `Config.listConfigs` projects it into JSON Schema — query it before writing a config. The session-header row's own interface lives in `opencode-session.js`; its keys and defaults are in the section above.
 
 The two blocks below are **examples: every writable key**, not the shipped content. Example one, the default mode — the route follows Settings:
 
@@ -94,5 +116,6 @@ Disable `@edmund724/dsh-subagent-pin` with `plugin_manager`'s `set_bundle`, or d
 ## Further reading
 
 - [The seam and the Host contract](docs/seam.md) — why the wrapper lives on descriptors, what activation checks, and what a capability downgrade warns about.
-- [Tests and live checks](docs/verification.md) — the 129 unit tests by file, how to use `verify`, and the checklist to run after a Harness upgrade.
+- [Tests and live checks](docs/verification.md) — the 154 unit tests by file, how to use `verify`, and the checklist to run after a Harness upgrade.
+- [The OpenCode Go session header](docs/opencode-session.md) — the header row's scope, where its value comes from, its four config keys and how to check it.
 - [The glossary](CONTEXT.md) — the four decisions and the two exemption reasons; read it before touching the policy.

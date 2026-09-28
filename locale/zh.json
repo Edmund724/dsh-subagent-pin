@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "子代理模型锁定",
-    "description": "给没有自己指定路由的 fresh 子代理委派补上配置好的 LLM 路由。"
+    "title": "子代理模型锁定 + OpenCode 会话头",
+    "description": "给没有自己指定路由的 fresh 子代理委派补上配置好的 LLM 路由；并把每个会话自己的 id 送进 OpenCode Go 要求的 x-opencode-session。"
   }
 }

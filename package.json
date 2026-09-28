@@ -1,15 +1,16 @@
 {
   "name": "@edmund724/dsh-subagent-pin",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
-  "description": "Gives every fresh subagent delegation that names no route the configured LLM route.",
+  "description": "Two DSH Host rows from one package: pin fresh subagent delegations to the configured LLM route, and carry each conversation's id to OpenCode Go.",
   "keywords": [
     "dsh",
     "deepseek-harness",
     "cordis",
     "plugin",
     "subagent",
-    "llm-routing"
+    "llm-routing",
+    "opencode"
   ],
   "license": "MIT",
   "repository": {
@@ -22,6 +23,7 @@
   },
   "exports": {
     ".": "./plugin.js",
+    "./opencode-session": "./opencode-session.js",
     "./verify": "./tools/verify-session.mjs",
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
@@ -35,6 +37,7 @@
   },
   "files": [
     "plugin.js",
+    "opencode-session.js",
     "config-schema.js",
     "route-policy.js",
     "host-contract.js",
