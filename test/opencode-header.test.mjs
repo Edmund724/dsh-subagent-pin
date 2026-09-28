@@ -1,5 +1,5 @@
 /**
- * The `opencode-session` row: which requests it rewrites, which it must not, and
+ * The `opencode-header` row: which requests it rewrites, which it must not, and
  * how the conversation's id survives a lazily pulled stream.
  *
  * The row exists because no documented seam carries a per-request header for
@@ -24,7 +24,7 @@ import {
   isOpencodeHost,
   resolveConfig,
   routeMatch,
-} from '../opencode-session.js'
+} from '../opencode-header.js'
 
 /** One recorded call to the transport the row stands in front of. */
 function fakeFetch(reply = { ok: true }) {
@@ -123,7 +123,7 @@ test('the row reader fills the same defaults the schema declares', () => {
 
 test('the row reader refuses a list or header it cannot use', () => {
   for (const row of [{ providers: [''] }, { hosts: [''] }, { headerName: '' }, { providers: 'opencode' }]) {
-    assert.throws(() => resolveConfig(row), /\[opencode-session\]/u, `${JSON.stringify(row)} must be refused`)
+    assert.throws(() => resolveConfig(row), /\[opencode-header\]/u, `${JSON.stringify(row)} must be refused`)
   }
 })
 

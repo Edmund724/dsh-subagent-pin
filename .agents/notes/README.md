@@ -37,7 +37,7 @@
 | [implemented/architecture/2026-09-27-强度不是插件的承诺.md](implemented/architecture/2026-09-27-强度不是插件的承诺.md) | 配置面为什么只收 Host 的七个 thinking level；为什么插件不按路由校验 `reasoningEffort`（DSH 自己的三层：配置面只认词汇、描述面取不到就当没有、请求面拒绝并点名） |
 | [implemented/process/2026-09-27-现场核对的自动化边界.md](implemented/process/2026-09-27-现场核对的自动化边界.md) | 现场核对表怎么拆成两半：生产证据无法自动化，读日志那一半变成 `npm run verify`；期望值为什么只来自那次运行自己的日志 |
 | [implemented/architecture/2026-09-28-请求头只能落在传输层.md](implemented/architecture/2026-09-28-请求头只能落在传输层.md) | 每会话的 `x-opencode-session` 为什么只能补在 `globalThis.fetch` 上（在 DSH master 上逐项核实的接缝）、排除掉的四个选项，以及作用域与 fail-open 的代价 |
-| [implemented/architecture/2026-09-28-每行显示自己的名字.md](implemented/architecture/2026-09-28-每行显示自己的名字.md) | 行名为什么必须是这一行自己的地址：DSH 从该地址的 `${name}/locale/*.json` 与 `${name}/package.json` 读显示名与图标（逐项核实 `readPluginMeta()`），于是整包留在卡片、每行只讲自己的功能；排除的四个选项与代价 |
+| [implemented/architecture/2026-09-28-每行显示自己的名字.md](implemented/architecture/2026-09-28-每行显示自己的名字.md) | 行名为什么必须是这一行自己的地址：DSH 从该地址的 `${name}/locale/*.json` 与 `${name}/package.json` 读显示名与图标（逐项核实 `readPluginMeta()`），于是整包留在卡片、每行只讲自己的功能；同日把会话头那行的 id 从 `opencode-session` 改为 `opencode-header`；排除的选项与代价 |
 
 ## 从 implemented 迁到 archived
 

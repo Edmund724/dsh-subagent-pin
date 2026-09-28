@@ -2,7 +2,7 @@
 
 [English](README-en.md) | **简体中文**
 
-> DeepSeek Harness 的 Host 插件：让 Settings「子代理模型」里勾选的模型，成为每一次**没有自己指定路由**的全新子代理委派的默认路由；指定了 `provider` 或 `model` 的委派原样放行。同一个包还带第二行 `opencode-session`：把**每个会话自己的** id 送进 OpenCode Go 要求的 `x-opencode-session`。以 bundle 装进 profile（本环境：`desktop` profile，行 id `subagent-pin` 与 `opencode-session`），禁用即恢复原样。
+> DeepSeek Harness 的 Host 插件：让 Settings「子代理模型」里勾选的模型，成为每一次**没有自己指定路由**的全新子代理委派的默认路由；指定了 `provider` 或 `model` 的委派原样放行。同一个包还带第二行 `opencode-header`：把**每个会话自己的** id 送进 OpenCode Go 要求的 `x-opencode-session`。以 bundle 装进 profile（本环境：`desktop` profile，行 id `subagent-pin` 与 `opencode-header`），禁用即恢复原样。
 
 ## 为什么需要它
 
@@ -23,7 +23,7 @@ Settings 的「子代理模型」行是一份权限清单加发现工具：它�
     source: settings
 ```
 
-同一个包还会 insert 第二行 `opencode-session`（下一节）：走 `dsh.profile.bundles` 装本包时它随包生效，手写挂载行的话照上面的格式再加一行、不带 `config`。
+同一个包还会 insert 第二行 `opencode-header`（下一节）：走 `dsh.profile.bundles` 装本包时它随包生效，手写挂载行的话照上面的格式再加一行、不带 `config`。
 
 4. 在 `~/.dsh/profiles/<profile>` 执行 `pnpm install`，然后重启 Harness
 
@@ -52,7 +52,7 @@ Settings 的「子代理模型」行是一份权限清单加发现工具：它�
 
 ## OpenCode Go 的会话头
 
-OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会话自己的**标识。以前这条头写死在路由配置里 —— 全机器一个值，所有会话与子代理共用；本包第二行 `opencode-session` 把它换成当前会话的**派生值**：拿会话 id 做一次 SHA-256、取前 16 字节、按 v4 UUID 形状输出。值只由会话 id 决定，所以同一个会话每次都相同、不同会话必不相同，而本地会话 id 本身不出机器（网关被实测接受过 `session-<uuid>` 与裸 UUID，因此沿用 UUID 形状）。静态头则应该从路由里删掉。
+OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会话自己的**标识。以前这条头写死在路由配置里 —— 全机器一个值，所有会话与子代理共用；本包第二行 `opencode-header` 把它换成当前会话的**派生值**：拿会话 id 做一次 SHA-256、取前 16 字节、按 v4 UUID 形状输出。值只由会话 id 决定，所以同一个会话每次都相同、不同会话必不相同，而本地会话 id 本身不出机器（网关被实测接受过 `session-<uuid>` 与裸 UUID，因此沿用 UUID 形状）。静态头则应该从路由里删掉。
 
 派生是纯函数，这一行因此**不存任何东西**：没有映射表要写、要清理、要防并发，冷恢复也不用读回什么 —— 会话 id 由 DSH 自己持久化，恢复后同一个 id 推出同一个值。想把网关日志里看到的值对回本地会话，用同一个函数算一遍即可（刻意不加盐，保持可复现）。
 
@@ -63,8 +63,8 @@ OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会
 随包不带 `config`：下面四个键都可选，schema 默认值就是安装形态（列表留空表示那一维不认领）：
 
 ```yaml
-- id: opencode-session
-  name: '@edmund724/dsh-subagent-pin/opencode-session'
+- id: opencode-header
+  name: '@edmund724/dsh-subagent-pin/opencode-header'
   config:
     enabled: true
     headerName: x-opencode-session
@@ -76,7 +76,7 @@ OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会
 
 ## 配置
 
-随包配置就是 [`cordis.patch.yml`](cordis.patch.yml) 里 `subagent-pin` 那一节：`source: settings`，不设 `defaultModel`/`reasoningEffort`。字段权威是路由这行导出的 `Config`（`config-schema.js`）：DSH 激活前用它校验整行、报错带字段路径；`Config.listConfigs` 可把它投影成 JSON Schema，写配置前先查它。会话头那行的接口在 `opencode-session.js`，键与默认值见上一节。
+随包配置就是 [`cordis.patch.yml`](cordis.patch.yml) 里 `subagent-pin` 那一节：`source: settings`，不设 `defaultModel`/`reasoningEffort`。字段权威是路由这行导出的 `Config`（`config-schema.js`）：DSH 激活前用它校验整行、报错带字段路径；`Config.listConfigs` 可把它投影成 JSON Schema，写配置前先查它。会话头那行的接口在 `opencode-header.js`，键与默认值见上一节。
 
 下面两块是**示例：所有可写键**，不是随包内容。默认模式 —— 路由跟随 Settings：
 
@@ -121,5 +121,5 @@ OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会
 
 - [接缝与 Host 契约](docs/seam.md) —— 包装为什么落在 descriptor 上、激活时检查什么、能力退化时警告什么。
 - [测试与现场核对](docs/verification.md) —— 160 项单元测试的逐文件拆分、`verify` 的用法、Harness 升级后的核对表。
-- [OpenCode Go 的会话头](docs/opencode-session.md) —— 会话头那行的作用域、值的来源、四个配置键与核对方法。
+- [OpenCode Go 的会话头](docs/opencode-header.md) —— 会话头那行的作用域、值的来源、四个配置键与核对方法。
 - [领域词表](CONTEXT.md) —— 四种决定与两类豁免原因的定义，改策略前先读。

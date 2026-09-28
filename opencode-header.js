@@ -40,9 +40,9 @@
  * This file owns the seam and the decisions in it; the accepted shape of a
  * `config` row is the `Config` exported here, which DSH projects and validates
  * before `apply()` runs. The reasoning behind the transport seam, and what was
- * ruled out, is in `docs/opencode-session.md`.
+ * ruled out, is in `docs/opencode-header.md`.
  *
- * @module @edmund724/dsh-subagent-pin/opencode-session
+ * @module @edmund724/dsh-subagent-pin/opencode-header
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks'
@@ -51,13 +51,13 @@ import { createHash } from 'node:crypto'
 import z from '@deepseek-ai/schemastery'
 
 /** Diagnostic prefix, shared with the rest of the package's output. */
-export const PREFIX = '[opencode-session] '
+export const PREFIX = '[opencode-header] '
 
 /** The header the OpenCode Go gateway requires, and the row's default. */
 const DEFAULT_HEADER = 'x-opencode-session'
 
 /** Where the installed patch, and its refcount, live on the transport surface. */
-const PATCH = Symbol.for('@edmund724/dsh-subagent-pin/opencode-session/patch')
+const PATCH = Symbol.for('@edmund724/dsh-subagent-pin/opencode-header/patch')
 
 /** Provider ids this row claims by prefix unless the row says otherwise. */
 const DEFAULT_PROVIDERS = ['opencode']

@@ -32,7 +32,7 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import { Config, KNOWN_KEYS } from '../config-schema.js'
-import { Config as SESSION_CONFIG, KNOWN_KEYS as SESSION_KEYS } from '../opencode-session.js'
+import { Config as SESSION_CONFIG, KNOWN_KEYS as SESSION_KEYS } from '../opencode-header.js'
 import { codeSpans, isPathShaped, lines, linkTargets } from '../test-support/document-tokens.mjs'
 import { ships } from '../test-support/package-files.mjs'
 
@@ -70,7 +70,7 @@ const FILES = MANIFEST.files
  */
 const ROW_SCHEMAS = new Map([
   [`${MANIFEST.name}/subagent-pin`, { keys: KNOWN_KEYS, route: 'defaultModel', routeKeys: ROUTE_KEYS }],
-  [`${MANIFEST.name}/opencode-session`, { keys: SESSION_KEYS, route: null, routeKeys: [] }],
+  [`${MANIFEST.name}/opencode-header`, { keys: SESSION_KEYS, route: null, routeKeys: [] }],
 ])
 
 /** The schema a block falls back to when its row cannot be placed. */
@@ -389,7 +389,7 @@ test('a config key that belongs to the package\'s other row is reported', () => 
   // The two rows' key sets are disjoint, and the block's `name:` is what decides
   // which schema a key is checked against — a key borrowed from the neighbour
   // must not pass on the strength of the block it sits in.
-  const text = `${read('README.md')}\n\n\`\`\`yaml\n- id: opencode-session\n  name: '@edmund724/dsh-subagent-pin/opencode-session'\n  config:\n    source: settings\n\`\`\`\n`
+  const text = `${read('README.md')}\n\n\`\`\`yaml\n- id: opencode-header\n  name: '@edmund724/dsh-subagent-pin/opencode-header'\n  config:\n    source: settings\n\`\`\`\n`
   const findings = configKeyFindings('README.md', text)
 
   assert.equal(findings.length, 1, findings.join('\n'))

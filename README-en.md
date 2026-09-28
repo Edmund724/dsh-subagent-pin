@@ -2,7 +2,7 @@
 
 **English** | [简体中文](README.md)
 
-> A Host plugin for DeepSeek Harness: it makes the models checked in the Settings subagent-model row the default route of every fresh subagent delegation that names no route of its own, and passes a delegation that names `provider` or `model` through untouched. The same package carries a second row, `opencode-session`, which sends **each conversation's own** id in the `x-opencode-session` header OpenCode Go requires. Installed as a bundle into a profile (in this environment: profile `desktop`, rows `subagent-pin` and `opencode-session`); disabling it restores the original shape.
+> A Host plugin for DeepSeek Harness: it makes the models checked in the Settings subagent-model row the default route of every fresh subagent delegation that names no route of its own, and passes a delegation that names `provider` or `model` through untouched. The same package carries a second row, `opencode-header`, which sends **each conversation's own** id in the `x-opencode-session` header OpenCode Go requires. Installed as a bundle into a profile (in this environment: profile `desktop`, rows `subagent-pin` and `opencode-header`); disabling it restores the original shape.
 
 ## Why it is needed
 
@@ -23,7 +23,7 @@ Turning the checkmarks into the default of every delegation is only possible ins
     source: settings
 ```
 
-The same package also inserts a second row, `opencode-session` (next section): installing this package through `dsh.profile.bundles` brings it along, and a hand-written mount row follows the shape above with no `config`.
+The same package also inserts a second row, `opencode-header` (next section): installing this package through `dsh.profile.bundles` brings it along, and a hand-written mount row follows the shape above with no `config`.
 
 4. Run `pnpm install` in `~/.dsh/profiles/<profile>`, then restart the Harness
 
@@ -52,7 +52,7 @@ Update: `git pull && npm install` → restart the Harness (a host plugin caches 
 
 ## The OpenCode Go session header
 
-OpenCode Go requires every inference request to carry `x-opencode-session`, whose value identifies **that conversation**. The header used to be hard-coded in the route config — one value for the whole machine, shared by every conversation and every child. This package's second row, `opencode-session`, replaces it with a **value derived from** the conversation's id: one SHA-256, first 16 bytes, emitted in the v4 UUID shape. The value depends on nothing but the id, so one conversation always derives the same value and two never collide, while the local session id itself leaves the machine (the gateway has been observed to accept `session-<uuid>` and a bare UUID, which is why the UUID shape is kept). The static header belongs out of the route.
+OpenCode Go requires every inference request to carry `x-opencode-session`, whose value identifies **that conversation**. The header used to be hard-coded in the route config — one value for the whole machine, shared by every conversation and every child. This package's second row, `opencode-header`, replaces it with a **value derived from** the conversation's id: one SHA-256, first 16 bytes, emitted in the v4 UUID shape. The value depends on nothing but the id, so one conversation always derives the same value and two never collide, while the local session id itself leaves the machine (the gateway has been observed to accept `session-<uuid>` and a bare UUID, which is why the UUID shape is kept). The static header belongs out of the route.
 
 Because the derivation is a pure function, this row **stores nothing**: there is no mapping to write, prune or guard against concurrent writers, and cold resume reads nothing back — DSH persists the session id, and the same id derives the same value. To reconcile a value seen in the gateway's logs with a local session, run the same function (deliberately unsalted, so it stays reproducible).
 
@@ -63,8 +63,8 @@ The scope is narrow: a request is rewritten only when **all three** hold — it 
 The row ships no `config`: the four keys below are all optional and their schema defaults are the install (an empty list claims nothing on that axis):
 
 ```yaml
-- id: opencode-session
-  name: '@edmund724/dsh-subagent-pin/opencode-session'
+- id: opencode-header
+  name: '@edmund724/dsh-subagent-pin/opencode-header'
   config:
     enabled: true
     headerName: x-opencode-session
@@ -76,7 +76,7 @@ Why the header can only live in the process transport (with the options ruled ou
 
 ## Config
 
-The shipped config is the `subagent-pin` section of [`cordis.patch.yml`](cordis.patch.yml): `source: settings`, with neither `defaultModel` nor `reasoningEffort`. The field-level authority is the `Config` the route row exports (`config-schema.js`): DSH validates the whole row against it before activation, with a field path in the message, and `Config.listConfigs` projects it into JSON Schema — query it before writing a config. The session-header row's own interface lives in `opencode-session.js`; its keys and defaults are in the section above.
+The shipped config is the `subagent-pin` section of [`cordis.patch.yml`](cordis.patch.yml): `source: settings`, with neither `defaultModel` nor `reasoningEffort`. The field-level authority is the `Config` the route row exports (`config-schema.js`): DSH validates the whole row against it before activation, with a field path in the message, and `Config.listConfigs` projects it into JSON Schema — query it before writing a config. The session-header row's own interface lives in `opencode-header.js`; its keys and defaults are in the section above.
 
 The two blocks below are **examples: every writable key**, not the shipped content. Example one, the default mode — the route follows Settings:
 
@@ -121,5 +121,5 @@ Disable `@edmund724/dsh-subagent-pin` with `plugin_manager`'s `set_bundle`, or d
 
 - [The seam and the Host contract](docs/seam.md) — why the wrapper lives on descriptors, what activation checks, and what a capability downgrade warns about.
 - [Tests and live checks](docs/verification.md) — the 160 unit tests by file, how to use `verify`, and the checklist to run after a Harness upgrade.
-- [The OpenCode Go session header](docs/opencode-session.md) — the header row's scope, where its value comes from, its four config keys and how to check it.
+- [The OpenCode Go session header](docs/opencode-header.md) — the header row's scope, where its value comes from, its four config keys and how to check it.
 - [The glossary](CONTEXT.md) — the four decisions and the two exemption reasons; read it before touching the policy.

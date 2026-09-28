@@ -26,9 +26,9 @@
     "./subagent-pin": "./plugin.js",
     "./subagent-pin/package.json": "./package.json",
     "./subagent-pin/locale/*.json": "./locale/subagent-pin/*.json",
-    "./opencode-session": "./opencode-session.js",
-    "./opencode-session/package.json": "./package.json",
-    "./opencode-session/locale/*.json": "./locale/opencode-session/*.json",
+    "./opencode-header": "./opencode-header.js",
+    "./opencode-header/package.json": "./package.json",
+    "./opencode-header/locale/*.json": "./locale/opencode-header/*.json",
     "./verify": "./tools/verify-session.mjs",
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
@@ -42,7 +42,7 @@
   },
   "files": [
     "plugin.js",
-    "opencode-session.js",
+    "opencode-header.js",
     "config-schema.js",
     "route-policy.js",
     "host-contract.js",

@@ -4,7 +4,7 @@
 
 前提只有一个 Node ≥ 22.15（`package.json` 的 `engines`；两个工具要 zstd。`PATH` 上没有 `node` 时用 Harness 自带的运行时：`<Harness 安装目录>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`；插件**运行时**不加载本仓库的 Node，它跑在 Harness 自带运行时上）。运行时依赖 `@deepseek-ai/schemastery`、契约测试依赖真实 Host 库（`@deepseek-ai/cordis`、`@deepseek-ai/dsh-app-boot`）都按精确版本锁在 `package.json`（后两者只给测试用），全新克隆先 `npm install`。测试不启动 Harness、不要凭据或网络；现场核对另需一个已启用本插件的运行中 Harness。
 
-单元测试 —— 160 项（`config-schema` 10 · `route-policy` 32 · `plugin` 29 · `host-contract` 17 · `docs` 13 · `opencode-session` 28 · `read-session` 5 · `verify-session` 9 · `package` 6 · `patch` 7 · `maintainer-docs` 3 · `tarball` 1；在 Node 25.8.0 上验证）：
+单元测试 —— 160 项（`config-schema` 10 · `route-policy` 32 · `plugin` 29 · `host-contract` 17 · `docs` 13 · `opencode-header` 28 · `read-session` 5 · `verify-session` 9 · `package` 6 · `patch` 7 · `maintainer-docs` 3 · `tarball` 1；在 Node 25.8.0 上验证）：
 
 ```powershell
 npm install
@@ -17,10 +17,10 @@ npm test
 - `test/route-policy.test.mjs` —— 策略：两种 source、默认项、指定路由原样放行（含半条路由、非字符串值、清单读不出来）、`defaultModel` 覆盖与失效、Settings 行的所有不可用形态、两个豁免；
 - `test/plugin.test.mjs` —— 接缝与组合：真实 Cordis 替身（`test-support/host-doubles.mjs`）上的安装、两种还原、治愈上一代遗留 shadow、装在我们之上的包装、通知去重；
 - `test/host-contract.test.mjs` —— Host 契约：对着锁死的库断言 proxy 陷阱、descriptor 落点、`ctx.effect`、Schemastery 行为与 `Config` 投影；契约表五条各有测试点名；
-- `test/opencode-session.test.mjs` —— 会话头那一行：三条 gate（作用域、`POST`、provider 前缀或网关域名）、同名头被替换、不改调用方对象、派生值的 UUID 形状与钉死的向量、同一会话跨请求恒定而不同会话不碰撞、判断失败时透传而传输层异常照抛、懒 pull 的流式作用域、并发会话互不串号、四个配置键的默认与拒绝、装卸的引用计数；
+- `test/opencode-header.test.mjs` —— 会话头那一行：三条 gate（作用域、`POST`、provider 前缀或网关域名）、同名头被替换、不改调用方对象、派生值的 UUID 形状与钉死的向量、同一会话跨请求恒定而不同会话不碰撞、判断失败时透传而传输层异常照抛、懒 pull 的流式作用域、并发会话互不串号、四个配置键的默认与拒绝、装卸的引用计数；
 - `test/docs.test.mjs` —— 文档守卫：README 的 `config:` 键被**该块自己那行**的 schema 声明（块里的 `name:` 决定认哪一份，两行各一份）、决定词在 `CONTEXT.md` 词表、相对链接与散文点名的仓库路径存在且随包、两份 README 章节同形同序；自带坏基线，每条判断都被喂一次改坏的真实文档证明它会红；
 - `test/read-session.test.mjs` / `test/verify-session.test.mjs` —— 证据工具：自造多帧/坏尾帧日志跑读取器与 `verify`（含 child 日志缺失、descriptor 与 header 不一致、期望越出冻结清单）；
-- `test/package.test.mjs` / `test/patch.test.mjs` / `test/tarball.test.mjs` / `test/maintainer-docs.test.mjs` —— 分别钉 `exports` 与 `files` 一致（含 icon 随包且画在官方 36×36 viewBox 上）、随包 patch（用 Host 自己的 API 读成两行 insert：`subagent-pin` 带 `source: settings`、`opencode-session` 不带 config，逐行对着它自己那份 schema 校验；并按住行名的读法 —— 每行的地址要导出它自己的双语 locale 与 `package.json`，且一行的标题/描述不得复述另一行）、真实 packlist 对拍 `files`（唯一动用 npm 的一项，不联网）、维护者文档（`AGENTS.md` 与 `.agents/notes/` 的笔记）里的引用。
+- `test/package.test.mjs` / `test/patch.test.mjs` / `test/tarball.test.mjs` / `test/maintainer-docs.test.mjs` —— 分别钉 `exports` 与 `files` 一致（含 icon 随包且画在官方 36×36 viewBox 上）、随包 patch（用 Host 自己的 API 读成两行 insert：`subagent-pin` 带 `source: settings`、`opencode-header` 不带 config，逐行对着它自己那份 schema 校验；并按住行名的读法 —— 每行的地址要导出它自己的双语 locale 与 `package.json`，且一行的标题/描述不得复述另一行）、真实 packlist 对拍 `files`（唯一动用 npm 的一项，不联网）、维护者文档（`AGENTS.md` 与 `.agents/notes/` 的笔记）里的引用。
 
 现场核对 —— 人工执行，每项一次工具调用。生产证据无法自动化（日志要真跑才有），但读日志是一条命令：
 

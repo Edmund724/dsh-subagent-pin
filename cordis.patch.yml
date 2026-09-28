@@ -1,8 +1,8 @@
 # `@edmund724/dsh-subagent-pin`, two rows from one package:
 # - `subagent-pin`: give delegations that name no route the default route of the
 #   models checked in Settings (policy table: README 「策略」).
-# - `opencode-session`: carry each conversation's own id to OpenCode Go in
-#   `x-opencode-session` (why the transport seam: docs/opencode-session.md).
+# - `opencode-header`: carry each conversation's own id to OpenCode Go in
+#   `x-opencode-session` (why the transport seam: docs/opencode-header.md).
 # Each row mounts its own address: DSH reads a row's title and description from
 # that address (`locale/<row id>/`), so the bundle card keeps the combined name
 # while each row is named for its own feature.
@@ -11,5 +11,5 @@
       name: '@edmund724/dsh-subagent-pin/subagent-pin'
       config:
         source: settings
-    - id: opencode-session
-      name: '@edmund724/dsh-subagent-pin/opencode-session'
+    - id: opencode-header
+      name: '@edmund724/dsh-subagent-pin/opencode-header'

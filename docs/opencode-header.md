@@ -1,10 +1,10 @@
 # OpenCode Go 的会话头
 
-本文是 README「深入阅读」的展开：`opencode-session` 这一行为什么长在传输层、
+本文是 README「深入阅读」的展开：`opencode-header` 这一行为什么长在传输层、
 作用域怎么划、值怎么来、配置四个键各管什么、以及怎么核对它真的生效。
 为什么落点只能在这里（逐个排除的选项）、值为什么取派生而不是原始 id，见
 [`.agents/notes/implemented/architecture/2026-09-28-请求头只能落在传输层.md`](../.agents/notes/implemented/architecture/2026-09-28-请求头只能落在传输层.md)；
-实现的不变量写在 `opencode-session.js` 的文件头。
+实现的不变量写在 `opencode-header.js` 的文件头。
 
 ## 它解决什么
 
@@ -72,6 +72,6 @@ OpenCode Go 从 2026-09-15 起要求每个推理请求带 `x-opencode-session`�
 ## 怎么核对
 
 单元测试覆盖全部三条 gate、同名头替换、派生值的形状与钉死的向量、失败透传与并发隔离
-（`test/opencode-session.test.mjs`）。桌面运行时那一半无法自动化，做法与期望值见
+（`test/opencode-header.test.mjs`）。桌面运行时那一半无法自动化，做法与期望值见
 [测试与现场核对](verification.md) 的那张表：改配置或升级 Harness 后，照表里的
 「OpenCode Go 会话头」两行走一遍。

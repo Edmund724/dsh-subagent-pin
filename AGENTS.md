@@ -2,7 +2,7 @@
 
 `@edmund724/dsh-subagent-pin` 是装在包外的 Host 插件，一个包两行：`subagent-pin`
 包住 `ctx.subagents` 的 `start` / `startContinuable`，给**没有自己指定路由**的新建
-委派补上路由清单里的默认项；`opencode-session` 补在进程传输层上，把每个会话自己的
+委派补上路由清单里的默认项；`opencode-header` 补在进程传输层上，把每个会话自己的
 **派生标识**（原始 id 不出机器）送进 OpenCode Go 要的 `x-opencode-session`。它跑在
 Harness 自带的运行时上，随包安装进某个 profile。
 
@@ -18,9 +18,9 @@ Harness 自带的运行时上，随包安装进某个 profile。
 | `plugin.js` | 入口：接缝包装（own shadow）、激活自检、通知去重；`reject` 由它抛出 |
 | `route-policy.js` | 决定：`pin` / `pass` / `exempt` / `reject`，以及路由清单的解析 |
 | `config-schema.js` | 路由那行的配置接口声明（原生 Schemastery 图）；schema 节点表达不了的划界归 `plugin.js` 的 `resolveConfig()` |
-| `opencode-session.js` | 会话头那行：传输层接缝（`AsyncLocalStorage` 作用域 + 引用计数）、四键 `Config`、做判断的纯函数与 `deriveSessionValue()` |
+| `opencode-header.js` | 会话头那行：传输层接缝（`AsyncLocalStorage` 作用域 + 引用计数）、四键 `Config`、做判断的纯函数与 `deriveSessionValue()` |
 | `host-contract.js` | 委派接缝的 Host 形状假设唯一声明处：`SEAM_CONTRACT`、`assertSeam()`、`verifyShadowInstall()` |
-| `cordis.patch.yml` | 随包 patch：向 profile insert 两行（`id: subagent-pin`、`id: opencode-session`） |
+| `cordis.patch.yml` | 随包 patch：向 profile insert 两行（`id: subagent-pin`、`id: opencode-header`） |
 | `README.md` / `README-en.md` | 人类手册（完整互译）：怎么用、为什么这么用 |
 | `CONTEXT.md` | 词表与判据：八个决定/原因词、会话头，以及划界规则 |
 | `docs/` | 渐进式披露的深入文档：接缝与 Host 契约、测试与现场核对、OpenCode Go 的会话头（README「深入阅读」指向它们） |
@@ -30,7 +30,7 @@ Harness 自带的运行时上，随包安装进某个 profile。
 | `tools/read-session.mjs` | 内部证据读取器：切分拼接的 zstd 帧、按完整 type 选事件 |
 | `tools/verify-session.mjs` | `verify` 入口（`exports` 的 `./verify`） |
 | `locale/en.json` / `locale/zh.json` | 组合包卡片（整包）的标题与描述（双语） |
-| `locale/subagent-pin/{en,zh}.json`、`locale/opencode-session/{en,zh}.json` | 各行自己的标题与描述：DSH 按该行的 `name` 地址读这一份（行名即行地址） |
+| `locale/subagent-pin/{en,zh}.json`、`locale/opencode-header/{en,zh}.json` | 各行自己的标题与描述：DSH 按该行的 `name` 地址读这一份（行名即行地址） |
 | `icon.svg` | manifest 顶层 `icon`，画在官方 36×36 viewBox 上 |
 
 ## 命令
@@ -53,12 +53,12 @@ npm run verify -- --lead <会话日志>   # 现场核对：断言那一次运行
 2. **词表与判据** —— `CONTEXT.md` 是 `pin` / `pass` / `exempt` / `reject` 与
    `named` / `opaque` / `inherited` / `capability` 的唯一定义处；
 3. **实现者层** —— 各模块 JSDoc（`route-policy.js`、`config-schema.js`、
-   `host-contract.js`、`opencode-session.js` 的文件头）；
+   `host-contract.js`、`opencode-header.js` 的文件头）；
 4. **决策记录** ——
    `.agents/notes/{implemented,archived}/{process,architecture,feature,simplification}/YYYY-MM-DD-<slug>.md`。
 
 权威归属：某个词的定义在 `CONTEXT.md`；某条**委派接缝**的 Host 形状假设在
-`host-contract.js`（会话头那行的形状假设在 `opencode-session.js` 文件头 —— 两条接缝
+`host-contract.js`（会话头那行的形状假设在 `opencode-header.js` 文件头 —— 两条接缝
 各声明一次，不互相并入）；某个决定取值的语义在 `route-policy.js`。
 
 ## 红线
@@ -73,14 +73,14 @@ npm run verify -- --lead <会话日志>   # 现场核对：断言那一次运行
 - **只包 descriptor，不靠函数身份。** `ctx.subagents` 是 tracing proxy，函数值身份
   每次读取都变；包装是 own shadow，安装与撤销都基于 descriptor。
 - **Host 形状假设只声明一次。** 委派接缝的在 `host-contract.js`：`fail` 级拒绝激活，
-  `warn` 级只点名警告一次；会话头那行的在 `opencode-session.js` 文件头，缺 `ctx.on`
+  `warn` 级只点名警告一次；会话头那行的在 `opencode-header.js` 文件头，缺 `ctx.on`
   时只警告并保持传输层不动。
 - **冷恢复不是一次委派。** 路由随 child 冻结在 `subagent/descriptor`，插件不复查、
   不改写（`CONTEXT.md`「入口」）。
 - **会话头只改该改的请求。** 只有在一个 `llm/stream` 作用域内、方法是 `POST`、且
   provider 前缀或网关域名命中时，才把 `headerName` 写成当前会话 id 的**派生值**
   （SHA-256 前 16 字节的 v4 UUID 形状；纯函数，不落任何存储）；其余请求原样透传，
-  判断失败也透传（`opencode-session.js` 文件头、README「OpenCode Go 的会话头」）。
+  判断失败也透传（`opencode-header.js` 文件头、README「OpenCode Go 的会话头」）。
 
 ### 已排除（完整推理在 `2026-09-27-接缝与已排除.md` 的 (b)）
 

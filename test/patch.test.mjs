@@ -6,7 +6,7 @@
  * `source: settings` on the pin row, no knobs at all on the session row, whose
  * schema defaults are the install. Nothing asserted any of it:
  * `package.test.mjs` proves the file exists and ships, `config-schema.test.mjs`
- * and `opencode-session.test.mjs` prove each interface accepts its shape, and
+ * and `opencode-header.test.mjs` prove each interface accepts its shape, and
  * between them a row could name another package, mount a third row, or set a key
  * its own schema does not declare without one failure.
  *
@@ -34,7 +34,7 @@ import { fileURLToPath } from 'node:url'
 import { bundlePatchFiles, bundlePatchPaths, loadOverlayPatches } from '@deepseek-ai/dsh-app-boot'
 
 import { Config as PIN_CONFIG, KNOWN_KEYS as PIN_KEYS } from '../config-schema.js'
-import { Config as SESSION_CONFIG, KNOWN_KEYS as SESSION_KEYS } from '../opencode-session.js'
+import { Config as SESSION_CONFIG, KNOWN_KEYS as SESSION_KEYS } from '../opencode-header.js'
 
 /** The repository root, where `package.json` sits. */
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -58,8 +58,8 @@ const ROWS = [
     shipped: { source: 'settings' },
   },
   {
-    id: 'opencode-session',
-    name: `${PACKAGE_NAME}/opencode-session`,
+    id: 'opencode-header',
+    name: `${PACKAGE_NAME}/opencode-header`,
     schema: SESSION_CONFIG,
     keys: SESSION_KEYS,
     shipped: undefined,
@@ -158,7 +158,7 @@ test('the shipped configs are the ones the READMEs document', () => {
 
   // The session row ships no config at all: its defaults are the install, and
   // the value it stamps is the live session id, which no static row could name.
-  const session = insertedRow('opencode-session')
+  const session = insertedRow('opencode-header')
   assert.equal(session.config, undefined, 'the session row ships no config; its schema defaults are the install')
   assert.deepEqual(SESSION_CONFIG['~standard'].validate(session.config ?? {}).value, {
     enabled: true,
