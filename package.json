@@ -1,6 +1,6 @@
 {
   "name": "dsh-subagent-pin",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Two DSH Host rows from one package: pin fresh subagent delegations to the configured LLM route, and carry each conversation's id to OpenCode Go.",
   "keywords": [
@@ -69,6 +69,6 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.4",
-    "@deepseek-ai/dsh-app-boot": "0.2.0-rc.1"
+    "@deepseek-ai/dsh-app-boot": "0.2.0-rc.2"
   }
 }

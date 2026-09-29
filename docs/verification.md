@@ -47,9 +47,9 @@ npm run verify -- --lead <lead 会话日志>   # 另有 --child / --expect / --d
 
 升级 Harness 后先看最后一行，再跑整张表。四点注意：
 
-- 契约测试对着**锁死的三个包**跑 —— `@deepseek-ai/schemastery`、`@deepseek-ai/cordis`、`@deepseek-ai/dsh-app-boot`（本环境：3.18.4 / 4.0.4 / 0.2.0-rc.1，读自 asar 内 `/dsh/node_modules/@deepseek-ai/*/package.json`），必须与随包 Host 同版本，否则测的是另一个 Host。**`npm view <包> version` 会骗人** —— 它给 `latest` 标签，本环境的 latest 是更旧的 0.1.0-rc.6，所以 `devDependencies` 必须写精确版本；升级时核对三个版本、重跑单元测试。
+- 契约测试对着**锁死的三个包**跑 —— `@deepseek-ai/schemastery`、`@deepseek-ai/cordis`、`@deepseek-ai/dsh-app-boot`（本环境：3.18.4 / 4.0.4 / 0.2.0-rc.2，读自 asar 内 `/dsh/node_modules/@deepseek-ai/*/package.json`），必须与随包 Host 同版本，否则测的是另一个 Host。**`npm view <包> version` 会骗人** —— 它给 `latest` 标签，本环境的 latest 是更旧的 0.1.0-rc.6，所以 `devDependencies` 必须写精确版本；升级时核对三个版本、重跑单元测试。
 - `Config` 用本仓库自己锁定的 schemastery，校验不经过 Host 那份，**版本号不同本身不会让插件挂掉**；但 Host 的 `createConfigProjector` 按跨版本契约读图的节点形状（`type`/`meta`/`dict`/`inner`/`list`），`limitations` 非空或 `status` 不再是 `schema` 即为投影退化。
 - 一处不靠包版本的耦合：`config-schema.js` 的 `THINKING_LEVELS` 就是 pi-ai profile `reasoning` 字段那组词 —— Host 新增 level 要在这里补上，否则 schema 会拒掉 Host 已认识的强度。
-- pi-ai 是随包版本，不在那三个包里：`0.2.0-rc.1` 随包 `^0.85.1`（还没有 `opencode-headers.js`），`0.2.0-rc.2` 起随包 `^0.87.1`（有）。升级后把 `docs/opencode-header.md` 那张会话头路径表对着实际随包的那一份重读：本行的设计**不依赖**「wrapper 不在场」（理由见[升级了也不跟着走](../.agents/notes/implemented/architecture/2026-09-29-升级了也不跟着走.md)），所以升级不会让这一行失效，但表里「今天成立吗」一列的措辞要跟着随包版本改。
+- pi-ai 是随包版本，不在那三个包里：本环境（`0.2.0-rc.2`）随包 `^0.87.1`，那条 catalog wrapper 因此**在场**；`0.2.0-rc.1` 随包的还是 `^0.85.1`，那时 `opencode-headers.js` 还不存在。升级后把 `docs/opencode-header.md` 那张会话头路径表对着实际随包的那一份重读：本行的设计**不依赖**「wrapper 不在场」（理由见[升级了也不跟着走](../.agents/notes/implemented/architecture/2026-09-29-升级了也不跟着走.md)），所以升级不会让这一行失效，但表里「今天成立吗」一列的措辞要跟着随包版本改。
 
 辅助工具：`tools/read-session.mjs` 切分日志里拼接的 zstd 帧（单次解压只得第一帧，坏尾帧只损失它自己），第二参数按**完整** type 过滤，每条事件整条打印成可解析的一行 JSON；`verify` 从包外调用走 `exports` 的 `./verify` 入口。禁用时的拆包装有单元测试覆盖，并在本环境现场观察过：DSH 在 unload 时执行该行的副作用，shadow 在运行中的进程里被删掉。
