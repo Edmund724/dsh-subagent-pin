@@ -8,15 +8,18 @@
  * `GenerateOptions` with no `headers` field, and the loop deep-freezes it; the
  * pi-ai adapter reads headers from the static route profile alone
  * (`dsh-llm-pi-ai/lib/index.js`, `requestHeaders(profile.headers)`). Upstream
- * pi-ai wraps its *catalog* factories from 0.86.0 on, which a hand-declared
- * route that sets `api:` never goes through — and DSH still pins `^0.85.1`. So
- * the only place left is the process transport, narrowed to exactly the
- * requests a model call makes.
+ * pi-ai wraps its *catalog* provider factories from 0.86.0 on, DSH ships that
+ * from 0.2.0-rc.2 (pi-ai `^0.87.1`), and it still does not reach a
+ * hand-declared route that sets `api:` — the wrapper sits in the api map those
+ * factories build, while such a route builds its provider from the protocol
+ * table. So the only place left is the process transport, narrowed to exactly
+ * the requests a model call makes.
  *
- * pi-ai's own session headers are no substitute: its per-model `compat` path
- * sends the raw id under its own names, and the 0.86.0 catalog wrapper — the one
- * path that sends `x-opencode-session` at all — sends the raw id as well. Both
- * cases, with what each one requires, are in `docs/opencode-header.md`; this row
+ * pi-ai's own session headers are no substitute, on two independent counts: the
+ * one path that sends `x-opencode-session` sends the *raw* id, and its per-model
+ * `compat` path sends the raw id under names the gateway did not ask for. Both,
+ * with what each one requires, are in `docs/opencode-header.md` and
+ * `.agents/notes/implemented/architecture/2026-09-29-升级了也不跟着走.md`; this row
  * is the only one that sends the gateway's name *and* a value derived from the
  * id.
  *

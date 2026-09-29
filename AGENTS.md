@@ -83,6 +83,9 @@ npm run verify -- --lead <会话日志>   # 现场核对：断言那一次运行
   provider 前缀或网关域名命中时，才把 `headerName` 写成当前会话 id 的**派生值**
   （SHA-256 前 16 字节的 v4 UUID 形状；纯函数，不落任何存储）；其余请求原样透传，
   判断失败也透传（`opencode-header.js` 文件头、README「OpenCode Go 的会话头」）。
+- **值不跟着上游走。** pi-ai 在场的那条路（catalog 工厂 wrapper）够不到手写 `api:` 的路由、
+  发的是原始 id，Responses 那条连开关都没有；本行自己在传输层写派生值，不把承诺寄望于上游的
+  可配置项（`opencode-header.js` 文件头、`.agents/notes/implemented/architecture/2026-09-29-升级了也不跟着走.md`）。
 
 ### 已排除（完整推理在 `2026-09-27-接缝与已排除.md` 的 (b)）
 

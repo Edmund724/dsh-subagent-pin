@@ -239,6 +239,20 @@ test('a same-name header the route already carried is replaced', async () => {
   assert.equal(new Headers(calls[0].init.headers).get('x-opencode-session'), VALUE)
 })
 
+test('a same-name header pi-ai itself stamped is replaced, exactly once', async () => {
+  // From pi-ai 0.86.0 the catalog path stamps this very header with the raw
+  // session id (`withOpenCodeSessionHeader`), and a request may carry it under
+  // any casing, as a plain record or as a `Headers`. The derived value is the
+  // one that must travel — and only one of it.
+  const { calls, handler, als } = probe()
+  const headers = new Headers({ 'X-OpenCode-Session': SCOPE.sessionId })
+  await als.run(SCOPE, () => handler(MESSAGES_URL, { method: 'POST', headers }))
+  const sent = new Headers(calls[0].init.headers)
+  assert.equal(sent.get('x-opencode-session'), VALUE)
+  assert.equal([...sent].filter(([name]) => name === 'x-opencode-session').length, 1)
+  assert.ok(![...sent.values()].includes(SCOPE.sessionId), 'the raw id must not survive under any casing')
+})
+
 test('the rewrite never mutates the caller\'s objects', async () => {
   const { calls, handler, als } = probe()
   const init = { method: 'POST', headers: { 'content-type': 'application/json' } }

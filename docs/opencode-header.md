@@ -13,8 +13,9 @@ OpenCode Go 从 2026-09-15 起要求每个推理请求带 `x-opencode-session`�
 所有子代理共用同一个 id，网关按会话计费、限流与配额的那套语义就无从谈起。
 
 本行把静态头换成当前会话 id 的**派生值**：同一个会话恒定、不同会话不碰撞，而本地 id
-不出机器。上游 pi-ai 从 0.86.0 起也带同类逻辑，DSH 还没升依赖，且手写 `api:` 的路由
-本来就不经过那段逻辑 —— 这一点 README「OpenCode Go 的会话头」按事实写清了。
+不出机器。上游 pi-ai 从 0.86.0 起也带同类逻辑，DSH 从 0.2.0-rc.2 起随包（pi-ai
+`^0.87.1`）—— 但那条路只对 catalog 路由生效，且发的是原始 id，所以本行一条都省不掉：
+完整推理见[为什么升级了也不跟着走](../.agents/notes/implemented/architecture/2026-09-29-升级了也不跟着走.md)。
 
 ## pi-ai 自己会不会带这个头
 
@@ -22,18 +23,25 @@ OpenCode Go 从 2026-09-15 起要求每个推理请求带 `x-opencode-session`�
 
 | pi-ai 的会话头路径 | 触发条件 | 头名 | 值 | 今天成立吗 |
 |---|---|---|---|---|
-| 按模型 `compat.sendSessionAffinityHeaders`（0.85.1 起就有） | 该模型把这个开关打开 | `x-session-affinity`；OpenAI 形状是 `x-client-request-id` + `x-session-affinity`，其中 openai 再加 `session_id`、openrouter 换 `x-session-id` | **原始** `sessionId` | 不成立：opencode-go 的 catalog 里没有一个模型开这个开关，本环境这条手写路由也没有 `compat` |
-| catalog 工厂 wrapper `withOpenCodeSessionHeader`（0.86.0 起） | 路由走 pi-ai 的 catalog 工厂 | `x-opencode-session` | **原始** `options.sessionId` | 不成立：DSH 钉 `^0.85.1`，且本环境路由手写了 `api:`，不经过 catalog |
+| catalog 工厂 wrapper `withOpenCodeSessionHeader`（0.86.0 起） | 路由**复用 catalog provider**（不写 `api:`） | `x-opencode-session` | **原始** `options.sessionId` | 会发头，但进不去：本环境路由手写了 `api:`，走协议表现场构造 provider，不复用 catalog provider |
+| 按模型 `compat.sendSessionAffinityHeaders`（0.85.1 起就有） | 该模型把这个开关打开 | `x-session-affinity`；OpenAI 形状是 `x-client-request-id` + `x-session-affinity`，其中 openai 再加 `session_id`、openrouter 换 `x-session-id` | **原始** `sessionId` | 不成立：头名不是网关要的这个，opencode-go 的 catalog 里没有一个模型开这个开关，本环境这条手写路由也没有 `compat` |
+| OpenAI Responses 的 `sessionAffinityFormat` | 模型讲 Responses 协议、且 `sessionId` 在、cache retention 不是 `none` | `session_id` + `x-client-request-id`（`openai-nosession` 只发后者） | **原始** `sessionId` | 不成立，而且**没有开关可关**：这条路不看任何 `compat` 布尔量 |
 | 其余情况 | — | 不发任何会话头 | — | 今天的实装状态 |
 
-所以「进了 catalog 就会自动带头」不成立；两条真会发头的路，发出去的都是**原始 id**。
+所以「进了 catalog 就会自动带头」不成立；三条真会发头的路，发出去的都是**原始 id**。
 本行承诺两件事 —— 头名是网关要的那个、值是派生值（原始 id 不出机器）—— 没有任何一条
 pi-ai 路径能同时满足，这就是它不构成替代的原因。
 
-三条路的位置都在随包 Host 的 `dsh/node_modules/@earendil-works/pi-ai@0.85.1` 里读到：
-`dist/api/anthropic-messages.js`（默认 `sendSessionAffinityHeaders ?? false` 在 124 行，
-发出在 725 行）、`dist/api/openai-completions.js`（发出在 557-567 行，默认 `false` 在
-1309 行）、`dist/providers/data/opencode-go.json`（27 个模型的 `compat` 里没有这个键）。
+今天的位置都在随包 Host 的 `dsh/node_modules/@earendil-works/pi-ai@0.87.1` 里读到
+（rc.1 随包的还是 0.85.1，那时 `opencode-headers.js` 还不存在）：
+`dist/providers/opencode-headers.js`（`withOpenCodeSessionHeader` 全文，同名头已存在时
+跳过）、`dist/providers/opencode-go.js` 与 `dist/providers/opencode.js`（wrapper 只包在
+工厂造出的 api map 上）、`dist/api/anthropic-messages.js`（`sendSessionAffinityHeaders`
+默认 `false`）、`dist/api/openai-completions.js`（默认 `isOpenRouter`）、
+`dist/api/openai-responses.js`（`if (sessionId)`，无开关）、
+`dist/providers/data/opencode-go.json`（没有一个模型打开兼容开关）。宿主那侧的岔路在
+`packages/llm/llm-pi-ai/src/provider.ts`：只有 `catalog !== undefined && spec.api === undefined`
+才复用 catalog provider，其余走协议表 `createProvider`。
 
 ## 作用域：只有这些请求会变
 

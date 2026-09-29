@@ -4,7 +4,7 @@
 
 前提只有一个 Node ≥ 22.15（`package.json` 的 `engines`；两个工具要 zstd。`PATH` 上没有 `node` 时用 Harness 自带的运行时：`<Harness 安装目录>\resources\runtime\primary-runtime\dependencies\node\bin\node.exe`；插件**运行时**不加载本仓库的 Node，它跑在 Harness 自带运行时上）。运行时依赖 `@deepseek-ai/schemastery`、契约测试依赖真实 Host 库（`@deepseek-ai/cordis`、`@deepseek-ai/dsh-app-boot`）都按精确版本锁在 `package.json`（后两者只给测试用），全新克隆先 `npm install`。测试不启动 Harness、不要凭据或网络；现场核对另需一个已启用本插件的运行中 Harness。
 
-单元测试 —— 167 项（`config-schema` 10 · `route-policy` 32 · `plugin` 29 · `host-contract` 17 · `docs` 13 · `opencode-header` 30 · `read-session` 5 · `verify-session` 12 · `package` 7 · `patch` 8 · `maintainer-docs` 3 · `tarball` 1；在 Node 25.8.0 上验证）：
+单元测试 —— 168 项（`config-schema` 10 · `route-policy` 32 · `plugin` 29 · `host-contract` 17 · `docs` 13 · `opencode-header` 31 · `read-session` 5 · `verify-session` 12 · `package` 7 · `patch` 8 · `maintainer-docs` 3 · `tarball` 1；在 Node 25.8.0 上验证）：
 
 ```powershell
 npm install
@@ -41,14 +41,15 @@ npm run verify -- --lead <lead 会话日志>   # 另有 --child / --expect / --d
 | 显式指定清单外的路由 | `--expect <越界路由>` | 用 workflow `agent()` 指定清单外路由（`subagent` 工具那条路先被 DSH 自己拦，验不到本插件） | 子代理**原样跑该路由**，插件不报错 |
 | Lead 不受影响 | `--lead-expect <Lead 路由>` | 核对同一次运行的 lead 日志 | `request/header` 保持 Lead 自己的路由 |
 | 禁用 = 不改变 | — | 禁用 bundle，再带显式路由跑一次探测 | 子代理跑显式路由：没有任何包装 |
-| OpenCode Go 会话头：值来自本行 | — | 路由里**不写** `x-opencode-session` 静态头，重启后用一个 `opencodego` 模型发一条消息 | 正常返回（网关收不到头会 400）：值只能来自本行，且是非原值的派生串 |
+| OpenCode Go 会话头：值来自本行 | — | 路由里**不写** `x-opencode-session` 静态头，重启后用一个 `opencodego` 模型发一条消息 | 正常返回（网关收不到头会 400）：值只能来自本行，且是非原值的派生串。手写 `api:` 的路由在随包 pi-ai `^0.87.1` 上同样不会有上游发的同名头（为什么，见 [OpenCode Go 的会话头](opencode-header.md)） |
 | OpenCode Go 会话头：每个会话一份 | — | 再开一个会话发一条，并起一个子代理 | 三处都正常返回；不同会话的派生值不同（要核对某个值属于哪次会话，本地用同一个摘要函数算一遍即可） |
 | Harness 升级后的投影契约（先看这一行） | — | 用 `Config.listConfigs` 查 `entry: include:subagent-pin`（离线部分由 `test/host-contract.test.mjs` 钉住，`status` 只有活 Host 看得到） | `status: "schema"` 且 `limitations: []`；`provider` 带 `minLength: 1`，`defaultModel` 带 `required: [provider, model]`，`source` 带 `default: "settings"`，`reasoningEffort` 带七个 level |
 
-升级 Harness 后先看最后一行，再跑整张表。三点注意：
+升级 Harness 后先看最后一行，再跑整张表。四点注意：
 
 - 契约测试对着**锁死的三个包**跑 —— `@deepseek-ai/schemastery`、`@deepseek-ai/cordis`、`@deepseek-ai/dsh-app-boot`（本环境：3.18.4 / 4.0.4 / 0.2.0-rc.1，读自 asar 内 `/dsh/node_modules/@deepseek-ai/*/package.json`），必须与随包 Host 同版本，否则测的是另一个 Host。**`npm view <包> version` 会骗人** —— 它给 `latest` 标签，本环境的 latest 是更旧的 0.1.0-rc.6，所以 `devDependencies` 必须写精确版本；升级时核对三个版本、重跑单元测试。
 - `Config` 用本仓库自己锁定的 schemastery，校验不经过 Host 那份，**版本号不同本身不会让插件挂掉**；但 Host 的 `createConfigProjector` 按跨版本契约读图的节点形状（`type`/`meta`/`dict`/`inner`/`list`），`limitations` 非空或 `status` 不再是 `schema` 即为投影退化。
 - 一处不靠包版本的耦合：`config-schema.js` 的 `THINKING_LEVELS` 就是 pi-ai profile `reasoning` 字段那组词 —— Host 新增 level 要在这里补上，否则 schema 会拒掉 Host 已认识的强度。
+- pi-ai 是随包版本，不在那三个包里：`0.2.0-rc.1` 随包 `^0.85.1`（还没有 `opencode-headers.js`），`0.2.0-rc.2` 起随包 `^0.87.1`（有）。升级后把 `docs/opencode-header.md` 那张会话头路径表对着实际随包的那一份重读：本行的设计**不依赖**「wrapper 不在场」（理由见[升级了也不跟着走](../.agents/notes/implemented/architecture/2026-09-29-升级了也不跟着走.md)），所以升级不会让这一行失效，但表里「今天成立吗」一列的措辞要跟着随包版本改。
 
 辅助工具：`tools/read-session.mjs` 切分日志里拼接的 zstd 帧（单次解压只得第一帧，坏尾帧只损失它自己），第二参数按**完整** type 过滤，每条事件整条打印成可解析的一行 JSON；`verify` 从包外调用走 `exports` 的 `./verify` 入口。禁用时的拆包装有单元测试覆盖，并在本环境现场观察过：DSH 在 unload 时执行该行的副作用，shadow 在运行中的进程里被删掉。
