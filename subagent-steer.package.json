@@ -1,0 +1,5 @@
+{
+  "name": "dsh-subagent-pin/subagent-steer",
+  "description": "Restores id-addressed messaging and interrupt for continuable subagents while Agent Teams owns send_message, and turns that dead-end call into a redirection.",
+  "icon": "./subagent-steer.icon.svg"
+}

@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Subagent Pin + OpenCode session header",
-    "description": "Gives every fresh subagent delegation that names no route the configured LLM route, and sends each conversation's own id in the x-opencode-session header OpenCode Go requires."
+    "title": "Subagent Pin + OpenCode session header + subagent steering",
+    "description": "Gives every fresh subagent delegation that names no route the configured LLM route, sends each conversation's own id in the x-opencode-session header OpenCode Go requires, and restores id-addressed messaging and interrupt for continuable subagents while Agent Teams owns send_message."
   }
 }

@@ -1,8 +1,8 @@
 {
   "name": "dsh-subagent-pin",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "type": "module",
-  "description": "Two DSH Host rows from one package: pin fresh subagent delegations to the configured LLM route, and carry each conversation's id to OpenCode Go.",
+  "description": "Three DSH Host rows from one package: pin fresh subagent delegations to the configured LLM route, carry each conversation's id to OpenCode Go, and keep continuable subagents id-addressable while Agent Teams owns send_message.",
   "keywords": [
     "dsh",
     "deepseek-harness",
@@ -10,7 +10,8 @@
     "plugin",
     "subagent",
     "llm-routing",
-    "opencode"
+    "opencode",
+    "agent-teams"
   ],
   "license": "MIT",
   "repository": {
@@ -26,6 +27,9 @@
     "./opencode-header": "./opencode-header.js",
     "./opencode-header/package.json": "./opencode-header.package.json",
     "./opencode-header/locale/*.json": "./locale/opencode-header/*.json",
+    "./subagent-steer": "./subagent-steer.js",
+    "./subagent-steer/package.json": "./subagent-steer.package.json",
+    "./subagent-steer/locale/*.json": "./locale/subagent-steer/*.json",
     "./verify": "./tools/verify-session.mjs",
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
@@ -40,6 +44,7 @@
   "files": [
     "plugin.js",
     "opencode-header.js",
+    "subagent-steer.js",
     "config-schema.js",
     "route-policy.js",
     "host-contract.js",
@@ -55,6 +60,8 @@
     "icon.svg",
     "opencode-header.icon.svg",
     "opencode-header.package.json",
+    "subagent-steer.icon.svg",
+    "subagent-steer.package.json",
     "test/**",
     "test-support/**",
     "tools/*.mjs"

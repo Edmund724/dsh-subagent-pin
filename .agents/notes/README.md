@@ -41,6 +41,8 @@
 | [implemented/architecture/2026-09-28-每行显示自己的名字.md](implemented/architecture/2026-09-28-每行显示自己的名字.md) | 行名为什么必须是这一行自己的地址：DSH 从该地址的 `${name}/locale/*.json` 与 `${name}/package.json` 读显示名与图标（逐项核实 `readPluginMeta()`），于是整包留在卡片、每行只讲自己的功能；同日把会话头那行的 id 从 `opencode-session` 改为 `opencode-header`；排除的选项与代价 |
 | [implemented/architecture/2026-09-28-每行画自己的图标.md](implemented/architecture/2026-09-28-每行画自己的图标.md) | 图标为什么要各画各的：一个地址只能有一份 manifest，也就只能有一枚图标，所以 `opencode-header` 那行导出自己的一份，画官方 OpenCode 几何 + 本包蓝（`iconOf()` 逐项核实：相对路径、四种媒体类型、256 KiB、不出 manifest 目录）；排除的选项与代价 |
 | [implemented/architecture/2026-09-29-升级了也不跟着走.md](implemented/architecture/2026-09-29-升级了也不跟着走.md) | pi-ai 随 rc.2 升到 `^0.87.1`、`withOpenCodeSessionHeader` 在场之后，为什么 `opencode-header` 仍不跟着它走：wrapper 只包 catalog 工厂造出的 api map（够不到手写 `api:` 的路由）、发的是原始 id、Responses 那条连开关都没有；宿主侧没有新缝、compat 配置面被 withheld；排除的选项与那条 `prompt_cache_key` 边角 |
+| [implemented/process/2026-10-03-子代理转向行并进本包.md](implemented/process/2026-10-03-子代理转向行并进本包.md) | `dsh-subagent-steer` 那一行为什么从独立包并进本包成第三行（共享运行时、Host 形状与验证纪律；两个 bundle 的双写与漂移）、它为什么不导出 `Config`、独立包退役时 profile 要动哪两处；排除的四个选项 |
+| [implemented/architecture/2026-10-03-替身必须复刻真身的加工.md](implemented/architecture/2026-10-03-替身必须复刻真身的加工.md) | 转向那行两次「看起来正常、实际没生效」的根因：写入侧的定义写成 `defineTool` 作者方言让 `register()` 抛 `UNSUPPORTED_SCHEMA` 并整行 FAILED，读取侧的判据读顶层 `target` 而真身只把 `target` 放在 `parameters.properties`；替身为什么必须复刻真身的两侧加工 |
 
 ## 从 implemented 迁到 archived
 

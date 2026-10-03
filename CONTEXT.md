@@ -25,7 +25,7 @@
 
 ## 配置接口（config interface）
 
-一行 `config` 可写什么的唯一**机器可读**声明：路由那行由 `config-schema.js` 导出的原生 Schemastery 图给出，会话头那行由 `opencode-header.js` 导出的同形状图给出。DSH 在激活前用它校验整行（报错自带字段路径），`Config.listConfigs` 可把它投影成 JSON Schema。
+一行 `config` 可写什么的唯一**机器可读**声明：路由那行由 `config-schema.js` 导出的原生 Schemastery 图给出，会话头那行由 `opencode-header.js` 导出的同形状图给出。DSH 在激活前用它校验整行（报错自带字段路径），`Config.listConfigs` 可把它投影成 JSON Schema。**转向那行不导出 `Config`**：它没有旋钮，因此 `Config.listConfigs` 对它报 `absent` 是正常状态，不是加载失败的信号。
 
 分界线：**一个 schema 节点能表达的归 `config-schema.js`，表达不了的归 `plugin.js` 的 `resolveConfig()`。** 这条线为什么划在这里，见 `config-schema.js` 的 JSDoc。
 
@@ -36,6 +36,14 @@
 `opencode-header` 那一行在**一次 `llm/stream` 的作用域**内给 OpenCode Go 的请求写上的头：名字由 `headerName` 给（默认 `x-opencode-session`），值由**当前会话的 id**（`GenerateOptions.sessionId`）派生 —— SHA-256 取前 16 字节，按 v4 UUID 形状输出。同一个会话 id 每次都推出同一个值，不同会话不碰撞，原始 id 不出机器；因为是纯函数，这一行不存任何状态，冷恢复也不需要读回。「在作用域内」由三条 gate 收窄 —— 在一次 `llm/stream` 里、方法是 `POST`、provider id 以配置前缀开头**或**落到的域名是配置的网关域名；三条同时成立才改写，其余请求原样透传（README「OpenCode Go 的会话头」）。
 
 落点为什么只能是进程传输层（逐个排除的选项）见 `.agents/notes/implemented/architecture/2026-09-28-请求头只能落在传输层.md`；做判断的那几个纯函数与不变量在 `opencode-header.js` 的文件头。
+
+## 子代理转向（subagent steering）
+
+`subagent-steer` 那一行在 Agent Teams 占用 `send_message` 的会话里补回的能力：两个自带名字的工具（`send_subagent_message` 按 agent id 投递、`interrupt_subagent` 按 agent id 中断）、一个把死路改成指路的全局 guard、一段只在工具对该 scope 可见时说话的 systemPrompt 段。**名字版**指 Agent Teams 注册进每个 Team 成员 agent scope 的 `send_message`（认 `target`），**id 版**指 `dsh-tool-subagent-control` 的全局 `send_message`（认 `agent_id`）；tracing 的解析规则是就近 scope 优先，所以成员只能拿到名字版，而 `subagent` / `subagent_fork` 返回的 id 因此不可寻址。
+
+**guard 只有两种结局：弃权与拒绝，从不抛出。** 判据不成立（别的工具、无调用方、解析到 id 版、没有 `agentTeams`、名单读失败、target 不是可用字符串）一律 `return undefined`；只有「解析到名字版 + target 既不是存活队友名也不是 `lead`」才返回一条点名 `list_agents` 与 `send_subagent_message` 的理由。抛出的守卫会被 Host 规范化成错误结果，等于打坏别人的调用。
+
+这一行是**带删除条件的前修复**：判据（三条）写在 README「何时删掉这一行」，本行不改名、不撤遮蔽、也不改别人的工具描述。
 
 ## Host 契约（host contract）
 

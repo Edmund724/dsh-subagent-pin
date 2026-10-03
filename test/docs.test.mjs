@@ -63,14 +63,20 @@ const FILES = MANIFEST.files
 /**
  * The rows this package ships, and the schema each row's `config:` is held to.
  *
- * A README documents both rows, so the block's own `name:` decides which schema
+ * A README documents every row, so the block's own `name:` decides which schema
  * its keys are checked against. A block naming a row this file cannot place
  * falls back to every key declared anywhere, which is still one-way and still
  * catches a key no schema declares.
+ *
+ * The steering row declares an empty key set on purpose: it exports no `Config`
+ * at all (`test/subagent-steer.test.mjs`, `test/patch.test.mjs`), so a README
+ * block naming it may write no key under `config:` — the row has no interface
+ * that could accept one.
  */
 const ROW_SCHEMAS = new Map([
   [`${MANIFEST.name}/subagent-pin`, { keys: KNOWN_KEYS, route: 'defaultModel', routeKeys: ROUTE_KEYS }],
   [`${MANIFEST.name}/opencode-header`, { keys: SESSION_KEYS, route: null, routeKeys: [] }],
+  [`${MANIFEST.name}/subagent-steer`, { keys: [], route: null, routeKeys: [] }],
 ])
 
 /** The schema a block falls back to when its row cannot be placed. */

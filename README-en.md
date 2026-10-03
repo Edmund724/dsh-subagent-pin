@@ -2,7 +2,7 @@
 
 **English** | [简体中文](README.md)
 
-> A Host plugin for DeepSeek Harness: it makes the models checked in the Settings subagent-model row the default route of every fresh subagent delegation that names no route of its own, and passes a delegation that names `provider` or `model` through untouched. The same package carries a second row, `opencode-header`, which sends **each conversation's own** id in the `x-opencode-session` header OpenCode Go requires. Installed as a bundle into a profile (in this environment: profile `desktop`, rows `subagent-pin` and `opencode-header`); disabling it restores the original shape.
+> A Host plugin for DeepSeek Harness, three rows from one package: it makes the models checked in the Settings subagent-model row the default route of every fresh subagent delegation that names no route of its own (a delegation that names `provider` or `model` passes through untouched); it sends **each conversation's own** id in the `x-opencode-session` header OpenCode Go requires; and while Agent Teams owns `send_message`, it restores id-addressed messaging and interrupt for continuable subagents. Installed as a bundle into a profile (in this environment: profile `desktop`, rows `subagent-pin`, `opencode-header` and `subagent-steer`); disabling it restores the original shape. The third row is a fix-forward patch carrying a deletion condition (delete it once upstream fixes the collision — see "Subagent steering"), not a feature.
 
 ## Why it is needed
 
@@ -23,9 +23,9 @@ Turning the checkmarks into the default of every delegation is only possible ins
     source: settings
 ```
 
-The same package also inserts a second row, `opencode-header` (next section): installing this package through `dsh.profile.bundles` brings it along, and a hand-written mount row follows the shape above with no `config`.
+The same package also inserts two more rows, `opencode-header` and `subagent-steer` (a section each below): installing this package through `dsh.profile.bundles` brings them along, and a hand-written mount row follows the shape above with no `config`.
 
-The two rows also draw their own icons — `subagent-pin` shows the pin (the package root's `icon.svg`), `opencode-header` shows the OpenCode mark (the `opencode-header.icon.svg` its own address exports through `opencode-header.package.json`: the official geometry, this package's blue). DSH reads the `icon` of each address's own `package.json`, so different addresses can draw different marks; one icon shared by both rows leaves the cards distinguishable by title alone.
+All three rows draw their own icons — `subagent-pin` shows the pin (the package root's `icon.svg`), `opencode-header` shows the OpenCode mark (the `opencode-header.icon.svg` its own address exports through `opencode-header.package.json`: the official geometry, this package's blue), and `subagent-steer` shows a target node with an arrow leaving it (the same mechanism through `subagent-steer.package.json` / `subagent-steer.icon.svg`). DSH reads the `icon` of each address's own `package.json`, so different addresses can draw different marks; one icon shared by several rows leaves the cards distinguishable by title alone.
 
 4. Run `pnpm install` in `~/.dsh/profiles/<profile>`, then restart the Harness
 
@@ -76,9 +76,25 @@ The row ships no `config`: the four keys below are all optional and their schema
 
 Why the header can only live in the process transport (with the options ruled out), and how to check it is really in effect, are the last two entries of Further reading.
 
+## Subagent steering
+
+Agent Teams and `dsh-tool-subagent-control` both answer to `send_message`: the former registers a name-addressed version (`{ target, message }`) into **every Team member's agent scope** (the Lead included), while the latter is the global id-addressed one (`{ agent_id, message }`). The tools registry resolves the **nearest scope**, so a member can only ever reach the name-addressed version — and `subagent` / `subagent_fork` still return an id and still tell the model, unconditionally, to continue the child with `send_message`. The id the model was just handed is therefore unaddressable: the call dies with `active teammate "<uuid>" not found`.
+
+The third row, `subagent-steer`, restores that dead end, in three parts: `send_subagent_message({ agent_id, message })` and `interrupt_subagent({ agent_id })` carry names of their own, so no scope collision is involved; a global guard denies only when the scope resolves the name-addressed `send_message` **and** the target is neither a live teammate name nor `lead`, naming `list_agents` and `send_subagent_message` so the dead end becomes a redirection; and a systemPrompt section speaks only while `send_subagent_message` is visible to that scope, stating the split in one sentence. This row **renames nothing, lifts no shadow and edits no other package's tool description** — it only adds names, denies, and appends one sentence.
+
+Boundaries: the service layer honours direct continuable parent/child pairs only (a non-direct relation throws `UNAUTHORIZED`, a one-shot child is not resumable: `NOT_RESUMABLE`); the row abstains silently when the `agentTeams` service is absent (and then `send_message` is not the name-addressed one either); the "wrong teammate name" error text becomes clearer and longer, which a deployment matching that exact text needs to know. The row ships **no `config`** (there are no knobs, and `subagent-steer.js` exports no `Config`), so its Config status showing `absent` in the Plugin Manager is expected.
+
+### When to delete this row
+
+Any one of these retires it — delete the row together with its code, tests and documentation:
+
+- `send_message`'s schema accepts both `target` and `agent_id`, or the Team version takes another name;
+- the `subagent` / `subagent_fork` description learns the same scope check the tool's return guidance already performs, instead of unconditionally pointing at `send_message`;
+- the tools registry starts diagnosing or rejecting a cross-scope name collision with different schemas.
+
 ## Config
 
-The shipped config is the `subagent-pin` section of [`cordis.patch.yml`](cordis.patch.yml): `source: settings`, with neither `defaultModel` nor `reasoningEffort`. The field-level authority is the `Config` the route row exports (`config-schema.js`): DSH validates the whole row against it before activation, with a field path in the message, and `Config.listConfigs` projects it into JSON Schema — query it before writing a config. The session-header row's own interface lives in `opencode-header.js`; its keys and defaults are in the section above.
+The shipped config is the `subagent-pin` section of [`cordis.patch.yml`](cordis.patch.yml): `source: settings`, with neither `defaultModel` nor `reasoningEffort`. The field-level authority is the `Config` the route row exports (`config-schema.js`): DSH validates the whole row against it before activation, with a field path in the message, and `Config.listConfigs` projects it into JSON Schema — query it before writing a config. The session-header row's own interface lives in `opencode-header.js`; its keys and defaults are in the section above. The steering row has no interface to query — it exports no `Config`, so it has no writable key.
 
 The two blocks below are **examples: every writable key**, not the shipped content. Example one, the default mode — the route follows Settings:
 
@@ -117,11 +133,11 @@ Editing the file has no effect on a running Harness: DSH caches each plugin modu
 
 ## Rollback
 
-Disable `dsh-subagent-pin` with `plugin_manager`'s `set_bundle`, or delete it with `remove_bundle`. Disabling disposes the wrapper in the running process: the seam is unwrapped and children inherit the delegating agent's route again. No profile patch and no preset was modified for this plugin; removing it leaves the composition exactly as it was.
+Disable `dsh-subagent-pin` with `plugin_manager`'s `set_bundle`, or delete it with `remove_bundle`. Disabling disposes the wrapper in the running process: the seam is unwrapped and children inherit the delegating agent's route again. The steering row's three registrations (two tools, its guard, its prompt section) hang on the Host's effects too and are disposed with the row, so `send_message` returns to name-only addressing that cannot reach an agent id. No profile patch and no preset was modified for this plugin; removing it leaves the composition exactly as it was.
 
 ## Further reading
 
 - [The seam and the Host contract](docs/seam.md) — why the wrapper lives on descriptors, what activation checks, and what a capability downgrade warns about.
-- [Tests and live checks](docs/verification.md) — the 167 unit tests by file, how to use `verify`, and the checklist to run after a Harness upgrade.
+- [Tests and live checks](docs/verification.md) — the 190 unit tests by file, how to use `verify`, and the checklist to run after a Harness upgrade.
 - [The OpenCode Go session header](docs/opencode-header.md) — the header row's scope, where its value comes from, its four config keys and how to check it.
 - [The glossary](CONTEXT.md) — the four decisions and the two exemption reasons; read it before touching the policy.

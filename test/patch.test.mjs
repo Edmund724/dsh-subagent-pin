@@ -50,7 +50,9 @@ const { name: PACKAGE_NAME, dsh, files: PACKAGE_FILES } = JSON.parse(readFileSyn
  *
  * `config: undefined` is a claim, not an omission: the session row ships no
  * knobs because its schema defaults *are* the install, and the READMEs document
- * every key a reader may add.
+ * every key a reader may add. `schema: undefined` is the stronger claim — that
+ * row exports no `Config` at all, so `Config.listConfigs` reports `absent` for
+ * it and there is no interface to hold a config to; `keys` then names nothing.
  */
 const ROWS = [
   {
@@ -65,6 +67,13 @@ const ROWS = [
     name: `${PACKAGE_NAME}/opencode-header`,
     schema: SESSION_CONFIG,
     keys: SESSION_KEYS,
+    shipped: undefined,
+  },
+  {
+    id: 'subagent-steer',
+    name: `${PACKAGE_NAME}/subagent-steer`,
+    schema: undefined,
+    keys: [],
     shipped: undefined,
   },
 ]
@@ -146,6 +155,13 @@ test('every key of a shipped config is one that row\'s own schema declares, and 
         `the shipped "${expected.id}" config sets "${key}", which its schema does not declare (it declares ${expected.keys.join(', ')})`,
       )
     }
+    if (expected.schema === undefined) {
+      // The other side of `test/subagent-steer.test.mjs`: a row this file does
+      // not hold to a schema may not ship a config either, or an install would
+      // carry keys no declared interface accepts.
+      assert.equal(row.config, undefined, `"${expected.id}" ships no schema, so it must ship no config`)
+      continue
+    }
     const { issues } = expected.schema['~standard'].validate(row.config ?? {})
     assert.equal(issues, undefined, `the shipped "${expected.id}" config does not validate: ${JSON.stringify(issues)}`)
   }
@@ -169,6 +185,10 @@ test('the shipped configs are the ones the READMEs document', () => {
     hosts: ['opencode.ai'],
     headerName: 'x-opencode-session',
   })
+
+  // The steering row ships no config because it has no schema to declare one:
+  // every part of its behaviour is fixed, and the READMEs document no key for it.
+  assert.equal(insertedRow('subagent-steer').config, undefined, 'the steering row ships no config')
 })
 
 // ── the name each row shows in the Plugin Manager ──────────────────────────
@@ -225,7 +245,7 @@ function addressMeta(specifier) {
   }
 }
 
-test('every row exports its own dictionaries and manifest, so both rows carry a written name', () => {
+test('every row exports its own dictionaries and manifest, so every row carries a written name', () => {
   // The row's address is what DSH reads both from, so an address without a
   // dictionary shows the specifier and an address without a manifest loses the
   // icon. Non-empty matters twice over: `textOf` throws on a blank field, and a
@@ -252,11 +272,11 @@ test('every row exports its own dictionaries and manifest, so both rows carry a 
 })
 
 test('no row repeats another row\'s copy: a row names its own function, not its neighbour\'s', () => {
-  // Two rows of one package are two features, each switchable on its own, so a
-  // row that carries the package's combined title claims the other row too — the
-  // pin row did exactly that while the session row could be switched off. The
-  // bundle's own title (the card) is `pin + session header`, so a row that
-  // repeats it repeats its neighbour; the comparison is per language and field.
+  // Several rows of one package are that many features, each switchable on its
+  // own, so a row that carries the package's combined title claims the other rows
+  // too — the pin row did exactly that while the session row could be switched
+  // off. The bundle's own title (the card) sums every row up, and the comparison
+  // below is pairwise and per language and field.
   const rows = insertedRows().map((row) => ({ id: row.id, ...addressMeta(row.name) }))
   let compared = 0
 

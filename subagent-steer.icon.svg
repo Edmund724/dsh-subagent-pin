@@ -1,0 +1,21 @@
+<!--
+  The steering row's mark, drawn on the official 36×36 viewBox: a target node
+  with an arrow leaving it — "deliver this to the agent you name". The node is a
+  rounded square and the arrow a shaft plus a triangular head, so the glyph reads
+  at the 16px card size. Recoloured into this package's blue, the same gradient
+  the pin and the OpenCode mark draw with, so the three rows of one bundle read
+  as a family while their shapes tell the features apart.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="36" height="36" fill="none">
+  <g fill="url(#steer)">
+    <rect x="5.6" y="14.4" width="7.2" height="7.2" rx="2.2"/>
+    <rect x="12.2" y="16.2" width="9.6" height="3.6" rx="1.8"/>
+    <path d="M21.4 11.4 30.6 18l-9.2 6.6z"/>
+  </g>
+  <defs>
+    <linearGradient id="steer" x1="18" y1="11.4" x2="18" y2="24.6" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#69B9FF"/>
+      <stop offset="1" stop-color="#324DE2"/>
+    </linearGradient>
+  </defs>
+</svg>

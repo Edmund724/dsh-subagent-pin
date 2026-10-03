@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "子代理转向",
+    "description": "在 Agent Teams 占用 send_message 的会话里补回按 agent id 给可继续子代理发消息、中断它们的能力，并把用错工具的调用改成指路而不是死路。"
+  }
+}

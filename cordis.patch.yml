@@ -1,8 +1,11 @@
-# `dsh-subagent-pin`, two rows from one package:
+# `dsh-subagent-pin`, three rows from one package:
 # - `subagent-pin`: give delegations that name no route the default route of the
 #   models checked in Settings (policy table: README 「策略」).
 # - `opencode-header`: carry each conversation's own id to OpenCode Go in
 #   `x-opencode-session` (why the transport seam: docs/opencode-header.md).
+# - `subagent-steer`: restore id-addressed steering of continuable subagents
+#   while Agent Teams owns `send_message` (a fix-forward row; the deletion
+#   signals are in README 「何时删掉这一行」).
 # Each row mounts its own address: DSH reads a row's title and description from
 # that address (`locale/<row id>/`), so the bundle card keeps the combined name
 # while each row is named for its own feature.
@@ -13,3 +16,5 @@
         source: settings
     - id: opencode-header
       name: 'dsh-subagent-pin/opencode-header'
+    - id: subagent-steer
+      name: 'dsh-subagent-pin/subagent-steer'

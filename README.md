@@ -2,7 +2,7 @@
 
 [English](README-en.md) | **简体中文**
 
-> DeepSeek Harness 的 Host 插件：让 Settings「子代理模型」里勾选的模型，成为每一次**没有自己指定路由**的全新子代理委派的默认路由；指定了 `provider` 或 `model` 的委派原样放行。同一个包还带第二行 `opencode-header`：把**每个会话自己的** id 送进 OpenCode Go 要求的 `x-opencode-session`。以 bundle 装进 profile（本环境：`desktop` profile，行 id `subagent-pin` 与 `opencode-header`），禁用即恢复原样。
+> DeepSeek Harness 的 Host 插件，一个包三行：让 Settings「子代理模型」里勾选的模型，成为每一次**没有自己指定路由**的全新子代理委派的默认路由（指定了 `provider` 或 `model` 的委派原样放行）；把**每个会话自己的** id 送进 OpenCode Go 要求的 `x-opencode-session`；并在 Agent Teams 占用 `send_message` 的会话里，补回按 agent id 给可继续子代理发消息、中断它们的能力。以 bundle 装进 profile（本环境：`desktop` profile，行 id `subagent-pin`、`opencode-header` 与 `subagent-steer`），禁用即恢复原样。第三行是**带删除条件的前修复**（上游修好就删，见「子代理转向」），不是新功能。
 
 ## 为什么需要它
 
@@ -23,9 +23,9 @@ Settings 的「子代理模型」行是一份权限清单加发现工具：它�
     source: settings
 ```
 
-同一个包还会 insert 第二行 `opencode-header`（下一节）：走 `dsh.profile.bundles` 装本包时它随包生效，手写挂载行的话照上面的格式再加一行、不带 `config`。
+同一个包还会 insert 另外两行 —— `opencode-header` 与 `subagent-steer`（各见后文一节）：走 `dsh.profile.bundles` 装本包时它们随包生效，手写挂载行的话照上面的格式再加两行、都不带 `config`。
 
-两行在插件列表里各画各的图标 —— `subagent-pin` 那行是图钉（包根 `package.json` 的 `icon.svg`），`opencode-header` 那行是 OpenCode 的标记（它自己地址导出的 `opencode-header.package.json` 声明的 `opencode-header.icon.svg`，官方几何、本包蓝色）。DSH 按地址读每个 `package.json` 的 `icon`，所以地址不同，画出来的标记就可以不同；两行共用一个图标，卡片上就只能靠标题分辨。
+三行在插件列表里各画各的图标 —— `subagent-pin` 那行是图钉（包根 `package.json` 的 `icon.svg`），`opencode-header` 那行是 OpenCode 的标记（它自己地址导出的 `opencode-header.package.json` 声明的 `opencode-header.icon.svg`，官方几何、本包蓝色），`subagent-steer` 那行是同法的 `subagent-steer.package.json` / `subagent-steer.icon.svg`（目标节点 + 出射箭头）。DSH 按地址读每个 `package.json` 的 `icon`，所以地址不同，画出来的标记就可以不同；几行共用一个图标，卡片上就只能靠标题分辨。
 
 4. 在 `~/.dsh/profiles/<profile>` 执行 `pnpm install`，然后重启 Harness
 
@@ -76,9 +76,25 @@ OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会
 
 这条头为什么只能长在进程传输层（逐个排除的选项）、怎么现场核对它真的生效，见「深入阅读」里的最后两篇。
 
+## 子代理转向
+
+Agent Teams 与 `dsh-tool-subagent-control` 都叫 `send_message`：前者在**每个 Team 成员（含 Lead）的 agent scope** 里注册名字版（`{ target, message }`），后者是全局的 id 版（`{ agent_id, message }`）。tools 注册表**就近 scope 优先**，成员解析到的永远是名字版 —— 而 `subagent` / `subagent_fork` 仍然返回 id、并在描述里无条件写「用 `send_message` 续跑」，那个刚拿到的 id 因此不可寻址：调用报 `active teammate "<uuid>" not found`。
+
+本包第三行 `subagent-steer` 把这条死路补回来，三件事：新增 `send_subagent_message({ agent_id, message })` 与 `interrupt_subagent({ agent_id })`（名字与 Team 版不同，因此不参与 scope 争名）；一个全局 guard 只在「该 agent 解析到名字版 `send_message`」且「target 既不是存活队友名、也不是 `lead`」时拒绝，理由点名 `list_agents` 与 `send_subagent_message`，把死路改成指路；一段 systemPrompt 只在 `send_subagent_message` 对该 scope 可见时输出，一句话写清两个工具的分工。这一行**不改名、不撤遮蔽、也不改别人的工具描述** —— 它只加名字、只拒绝、只补一句话。
+
+边界：服务层只认直接的 continuable 父子（非直接关系抛 `UNAUTHORIZED`，一次性子代理不可续 `NOT_RESUMABLE`）；`agentTeams` 服务缺席时它静默弃权（那时 `send_message` 也不会是名字版）；「队友名字写错」的报错文案会被这一行改写得更清楚、更长，若某个部署依赖那句原文做匹配，需要知道这一点。这一行**没有 `config`**（没有旋钮，`subagent-steer.js` 不导出 `Config`），插件列表里它的 Config 状态显示 `absent` 属正常。
+
+### 何时删掉这一行
+
+出现下面任一条，这一行就失去价值，应当连同它的代码、测试与文档一起删掉：
+
+- `send_message` 的 schema 同时接受 `target` 与 `agent_id`，或 Team 版改用别的名字；
+- `subagent` / `subagent_fork` 的描述改成像工具返回值那样按 scope 判断（不再无条件叫人用 `send_message`）；
+- tools 注册表对「跨层同名、schema 不同」给出诊断或直接失败。
+
 ## 配置
 
-随包配置就是 [`cordis.patch.yml`](cordis.patch.yml) 里 `subagent-pin` 那一节：`source: settings`，不设 `defaultModel`/`reasoningEffort`。字段权威是路由这行导出的 `Config`（`config-schema.js`）：DSH 激活前用它校验整行、报错带字段路径；`Config.listConfigs` 可把它投影成 JSON Schema，写配置前先查它。会话头那行的接口在 `opencode-header.js`，键与默认值见上一节。
+随包配置就是 [`cordis.patch.yml`](cordis.patch.yml) 里 `subagent-pin` 那一节：`source: settings`，不设 `defaultModel`/`reasoningEffort`。字段权威是路由这行导出的 `Config`（`config-schema.js`）：DSH 激活前用它校验整行、报错带字段路径；`Config.listConfigs` 可把它投影成 JSON Schema，写配置前先查它。会话头那行的接口在 `opencode-header.js`，键与默认值见上一节；转向那行没有接口可查 —— 它不导出 `Config`，也就没有可写的键。
 
 下面两块是**示例：所有可写键**，不是随包内容。默认模式 —— 路由跟随 Settings：
 
@@ -117,11 +133,11 @@ OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会
 
 ## 回滚
 
-用 `plugin_manager` 的 `set_bundle` 禁用 `dsh-subagent-pin`，或 `remove_bundle` 删除。禁用会在运行中的进程里卸载包装：接缝恢复未包装状态，子代理重新继承委派方的路由。本插件没动过任何 profile patch 或 preset，移除后组合与原来完全一致。
+用 `plugin_manager` 的 `set_bundle` 禁用 `dsh-subagent-pin`，或 `remove_bundle` 删除。禁用会在运行中的进程里卸载包装：接缝恢复未包装状态，子代理重新继承委派方的路由。转向那行的三样注册（两个工具、guard、提示段）同样挂在 Host 的 effect 上，随禁用一起注销，`send_message` 回到只有名字版可用、id 不可寻址的原状。本插件没动过任何 profile patch 或 preset，移除后组合与原来完全一致。
 
 ## 深入阅读
 
 - [接缝与 Host 契约](docs/seam.md) —— 包装为什么落在 descriptor 上、激活时检查什么、能力退化时警告什么。
-- [测试与现场核对](docs/verification.md) —— 167 项单元测试的逐文件拆分、`verify` 的用法、Harness 升级后的核对表。
+- [测试与现场核对](docs/verification.md) —— 190 项单元测试的逐文件拆分、`verify` 的用法、Harness 升级后的核对表。
 - [OpenCode Go 的会话头](docs/opencode-header.md) —— 会话头那行的作用域、值的来源、四个配置键与核对方法。
 - [领域词表](CONTEXT.md) —— 四种决定与两类豁免原因的定义，改策略前先读。
