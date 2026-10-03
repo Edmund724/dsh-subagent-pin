@@ -39,7 +39,7 @@
 
 ## 子代理转向（subagent steering）
 
-`subagent-steer` 那一行在 Agent Teams 占用 `send_message` 的会话里补回的能力：两个自带名字的工具（`send_subagent_message` 按 agent id 投递、`interrupt_subagent` 按 agent id 中断）、一个把死路改成指路的全局 guard、一段只在工具对该 scope 可见时说话的 systemPrompt 段。**名字版**指 Agent Teams 注册进每个 Team 成员 agent scope 的 `send_message`（认 `target`），**id 版**指 `dsh-tool-subagent-control` 的全局 `send_message`（认 `agent_id`）；tracing 的解析规则是就近 scope 优先，所以成员只能拿到名字版，而 `subagent` / `subagent_fork` 返回的 id 因此不可寻址。
+`subagent-steer` 那一行在 Agent Teams 占用 `send_message` 的会话里补回的能力：两个自带名字的工具（`send_subagent_message` 按 agent id 投递、`interrupt_subagent` 按 agent id 中断）、一个把死路改成指路的全局 guard、一段只在工具对该 scope 可见时说话的 systemPrompt 段。**名字版**指 Agent Teams 注册进每个 Team 成员 agent scope 的 `send_message`（认 `target`），**id 版**指 `dsh-tool-subagent-control` 的全局 `send_message`（认 `agent_id`）。本环境装的 Agent Teams profile 层把 id 版那行**直接禁用**（`@deepseek-ai/dsh-experimental-agent-team-profile` 里 `tool-subagent-control: disabled: true`）；两版同时在场时 tracing 的解析规则是就近 scope 优先，成员一样只拿到名字版 —— 两种情形下 `subagent` / `subagent_fork` 返回的 id 都因此不可寻址。
 
 **guard 只有两种结局：弃权与拒绝，从不抛出。** 判据不成立（别的工具、无调用方、解析到 id 版、没有 `agentTeams`、名单读失败、target 不是可用字符串）一律 `return undefined`；只有「解析到名字版 + target 既不是存活队友名也不是 `lead`」才返回一条点名 `list_agents` 与 `send_subagent_message` 的理由。抛出的守卫会被 Host 规范化成错误结果，等于打坏别人的调用。
 

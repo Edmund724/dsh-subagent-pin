@@ -78,7 +78,7 @@ OpenCode Go 要求每个推理请求带 `x-opencode-session`，值是**这次会
 
 ## 子代理转向
 
-Agent Teams 与 `dsh-tool-subagent-control` 都叫 `send_message`：前者在**每个 Team 成员（含 Lead）的 agent scope** 里注册名字版（`{ target, message }`），后者是全局的 id 版（`{ agent_id, message }`）。tools 注册表**就近 scope 优先**，成员解析到的永远是名字版 —— 而 `subagent` / `subagent_fork` 仍然返回 id、并在描述里无条件写「用 `send_message` 续跑」，那个刚拿到的 id 因此不可寻址：调用报 `active teammate "<uuid>" not found`。
+`send_message` 这个名字在 DSH 里有两份、参数不同：`dsh-tool-subagent-control` 的全局版认 `{ agent_id }`（按 id 投递可继续子代理或父代理），Agent Teams 的 scope 版认 `{ target }`（按队友名投递，注册进**每个 Team 成员（含 Lead）的 agent scope**）。本环境装的 Agent Teams profile 层**直接禁用了前者**（`@deepseek-ai/dsh-experimental-agent-team-profile` 里 `tool-subagent-control: disabled: true`）；两份同时挂着时，tools 注册表则**就近 scope 优先**，成员一样只解析到名字版。两种情形下结果相同 —— `subagent` / `subagent_fork` 仍然返回 id、并在描述里无条件写「用 `send_message` 续跑」，那个刚拿到的 id 因此不可寻址：调用报 `active teammate "<uuid>" not found`。
 
 本包第三行 `subagent-steer` 把这条死路补回来，三件事：新增 `send_subagent_message({ agent_id, message })` 与 `interrupt_subagent({ agent_id })`（名字与 Team 版不同，因此不参与 scope 争名）；一个全局 guard 只在「该 agent 解析到名字版 `send_message`」且「target 既不是存活队友名、也不是 `lead`」时拒绝，理由点名 `list_agents` 与 `send_subagent_message`，把死路改成指路；一段 systemPrompt 只在 `send_subagent_message` 对该 scope 可见时输出，一句话写清两个工具的分工。这一行**不改名、不撤遮蔽、也不改别人的工具描述** —— 它只加名字、只拒绝、只补一句话。
 

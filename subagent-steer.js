@@ -2,14 +2,18 @@
  * Host plugin row: restore id-addressed subagent steering when Agent Teams owns
  * the `send_message` name.
  *
- * Why it exists: `dsh-tool-subagent-control` registers a global `send_message`
- * that addresses a continuable subagent or parent by **agent id**, and Agent
- * Teams registers a scoped `send_message` that addresses a **teammate name**
- * into every Team member's agent scope. The tools registry resolves the nearest
- * scope, so a Team member — including the Lead — can only reach the name-
- * addressed one. `subagent` / `subagent_fork` still return an id and still tell
- * the model to continue the child with `send_message`, so the id the model was
- * just handed is unaddressable: the call fails with
+ * Why it exists: DSH ships two tools called `send_message` with different
+ * arguments. `dsh-tool-subagent-control` registers the global one,
+ * `send_message({ agent_id })`, which addresses a continuable subagent or parent
+ * by **agent id**; Agent Teams registers the scoped one,
+ * `send_message({ target })`, which addresses a **teammate name** into every
+ * Team member's agent scope. The Agent Teams profile layer this environment
+ * mounts disables the global row outright (`tool-subagent-control: disabled:
+ * true` in `@deepseek-ai/dsh-experimental-agent-team-profile`), and where both
+ * are mounted the tools registry resolves the nearest scope instead — either way
+ * a Team member, the Lead included, cannot reach a subagent by the id it was
+ * just handed. `subagent` / `subagent_fork` still return that id and still tell
+ * the model to continue the child with `send_message`, so the call fails with
  * `active teammate "<uuid>" not found`.
  *
  * What this row does about it, in three parts:
