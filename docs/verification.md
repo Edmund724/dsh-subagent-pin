@@ -46,8 +46,10 @@ npm run verify -- --lead <lead 会话日志>   # 另有 --child / --expect / --d
 | OpenCode Go 会话头：每个会话一份 | — | 再开一个会话发一条，并起一个子代理 | 三处都正常返回；不同会话的派生值不同（要核对某个值属于哪次会话，本地用同一个摘要函数算一遍即可） |
 | 转向行真的加载了 | — | 重启后看 `plugin_manager list_plugins` 里该行（本环境 `include:subagent-steer`）的 `fiberPhase`，再看 `Tool.listTools` | `fiberPhase: active`，且 `send_subagent_message` 与 `interrupt_subagent` 都在。`Config.listConfigs` 对该行报 `absent` 属正常（它不导出 `Config`，与有没有加载无关） |
 | 转向行把死路改成指路 | — | 在 Team 会话里调 `send_message({ target: "<某个 uuid>", message: "…" })` | 收到一条点名 `list_agents` 与 `send_subagent_message` 的拒绝理由，而不是 `active teammate "…" not found` |
-| 按 id 投递真的能唤醒子代理 | — | 用一个已结束的 continuable 子代理 id 调 `send_subagent_message({ agent_id, message })` | 它真的重新开始一轮，并把结果发回（它那一侧一直解析到 id 版 `send_message`） |
+| 按 id 投递真的能唤醒子代理 | — | 用一个已结束的 continuable 子代理 id 调 `send_subagent_message({ agent_id, message })` | 它真的重新开始一轮，并把结果发回 |
 | Harness 升级后的投影契约（先看这一行） | — | 用 `Config.listConfigs` 查 `entry: include:subagent-pin`（离线部分由 `test/host-contract.test.mjs` 钉住，`status` 只有活 Host 看得到） | `status: "schema"` 且 `limitations: []`；`provider` 带 `minLength: 1`，`defaultModel` 带 `required: [provider, model]`，`source` 带 `default: "settings"`，`reasoningEffort` 带七个 level |
+
+`Config.listConfigs` 的入参：带 `entry`（Loader 条目 id，如 `include:subagent-pin` / `include:subagent-steer`）返回该行的状态、`packageDir` 与投影后的 schema；不带 `entry` 才是分页目录 —— `name`（可选，精确匹配插件名）、`offset`（默认 0）、`limit`（默认 25，上限 100）。`offset` 与 `limit` 都必须是数字（整数），传字符串会先被入参校验挡下（`… rejected input: "input.limit" must be a number`），不是这两个键不存在。
 
 升级 Harness 后先看最后一行，再跑整张表。转向那三行是**带删除条件的前修复**：三条判据在 README「何时删掉这一行」，上游修好后连同这一行的代码、测试与文档一起删，本节这三行核对项也随之删掉。四点注意：
 
